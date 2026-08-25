@@ -33,7 +33,13 @@ const peerTyping = ref(false)
 const messagesEndRef = ref<HTMLDivElement | null>(null)
 
 // 当前登录用户 ID（兼容 id / userId 字段，登录返回的 UserInfoVO 使用 id）
-const currentUserId = computed(() => userStore.userInfo?.id ?? (userStore.userInfo as any)?.userId ?? 0)
+// Number() 强转避免后端 Long / Integer 与前端 number 在 === 比较时出现类型不一致
+const currentUserId = computed(() => {
+  const u = userStore.userInfo as any
+  if (!u) return 0
+  const id = u.id ?? u.userId ?? 0
+  return id ? Number(id) : 0
+})
 
 // 在线状态：登录中即视为在线（只要 token 有效就显示在线）
 const isOnline = computed(() => !!userStore.token)
@@ -574,8 +580,8 @@ onMounted(async () => {
   //    后端 UserVO 没有顶层 partnerId 字段，仅返回 partner 对象与 isBound 标志
   //    关键：必须确保拿到当前 token 对应的真实 userInfo.id，否则消息左右判定会全错
   let info = userStore.userInfo
-  // 关键：只要缺少 partner 信息（登录返回的 UserInfoVO 不含 partner 对象）就必须拉取完整 profile，
-  //      否则发送消息时取不到 partnerId 会误报"请先绑定伴侣"
+  // 关键：缺少 id（currentUserId 为 0）或缺少 partner 信息时，必须拉取完整 profile，
+  //      否则消息左右判定、partnerId 解析都会错。
   const needFetch = !info || !info.id || (!info.partnerId && !info.partner)
   if (needFetch) {
     try {
