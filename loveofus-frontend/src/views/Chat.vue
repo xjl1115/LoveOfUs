@@ -574,7 +574,9 @@ onMounted(async () => {
   //    后端 UserVO 没有顶层 partnerId 字段，仅返回 partner 对象与 isBound 标志
   //    关键：必须确保拿到当前 token 对应的真实 userInfo.id，否则消息左右判定会全错
   let info = userStore.userInfo
-  const needFetch = !info || !info.id || (!info.partnerId && !info.partner && !info.isBound)
+  // 关键：只要缺少 partner 信息（登录返回的 UserInfoVO 不含 partner 对象）就必须拉取完整 profile，
+  //      否则发送消息时取不到 partnerId 会误报"请先绑定伴侣"
+  const needFetch = !info || !info.id || (!info.partnerId && !info.partner)
   if (needFetch) {
     try {
       const fetched = await getUserInfo()
