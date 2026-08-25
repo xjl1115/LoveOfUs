@@ -2,9 +2,9 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import { getUserInfo } from '@/api/user'
 import {
   fetchHistory,
-  fetchUnreadCount,
   markAllRead,
   buildChatWsUrl,
   type ChatMessageVO,
@@ -37,12 +37,8 @@ function scrollToBottom() {
 async function loadHistory() {
   try {
     const res = await fetchHistory(1, 50)
-    if (res.code === 0) {
-      messages.value = res.data.list
-      scrollToBottom()
-    } else {
-      showToast(res.message || '加载历史消息失败')
-    }
+    messages.value = res.list
+    scrollToBottom()
   } catch (e) {
     console.error('loadHistory', e)
     showToast('加载历史消息失败')
@@ -171,7 +167,12 @@ function sendMessage() {
     showToast('聊天连接未就绪')
     return
   }
-  if (!userStore.userInfo?.partnerId) {
+  // 兼容后端 UserVO：partner 对象携带伴侣 ID；旧 partnerId 字段保留兼容
+  const partnerId =
+    userStore.userInfo?.partnerId ||
+    (userStore.userInfo?.partner as any)?.id ||
+    0
+  if (!partnerId) {
     showToast('请先绑定伴侣')
     return
   }
@@ -183,7 +184,7 @@ function sendMessage() {
   messages.value.push({
     id: undefined,
     senderId: currentUserId.value,
-    receiverId: userStore.userInfo.partnerId,
+    receiverId: partnerId,
     content: text,
     msgType: 1,
     isRead: 0,
@@ -219,16 +220,39 @@ function formatTime(s?: string) {
 }
 
 onMounted(async () => {
-  if (!userStore.userInfo) {
+  // 1. 登录态校验
+  if (!userStore.token) {
     showToast('请先登录')
     router.replace('/')
     return
   }
-  if (!userStore.userInfo.partnerId) {
+
+  // 2. 拉取最新用户信息（userStore.userInfo 可能因刷新或绑定后未更新而缺失/过期）
+  //    后端 UserVO 没有顶层 partnerId 字段，仅返回 partner 对象与 isBound 标志
+  let info = userStore.userInfo
+  if (!info || (!info.partnerId && !info.partner && !info.isBound)) {
+    try {
+      const fetched = await getUserInfo()
+      if (fetched) {
+        userStore.setUserInfo(fetched)
+        info = fetched
+      }
+    } catch (e) {
+      // 拉取失败时按未登录处理
+      showToast('请先登录')
+      router.replace('/')
+      return
+    }
+  }
+
+  // 3. 绑定态校验：兼容三种字段（partnerId 旧字段、partner 对象、isBound）
+  const isBound = !!(info?.partnerId || info?.partner || info?.isBound)
+  if (!isBound) {
     showToast('请先绑定伴侣')
     router.replace('/profile')
     return
   }
+
   await loadHistory()
   connect()
 })
@@ -400,4 +424,6 @@ onBeforeUnmount(() => {
   padding: 6px 12px;
 }
 :deep(.van-field__control) {
-  font-size:
+  font-size: 15px;
+}
+</style>
