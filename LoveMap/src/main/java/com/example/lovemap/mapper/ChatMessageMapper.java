@@ -53,4 +53,19 @@ public interface ChatMessageMapper {
      * 标记单条已读
      */
     int markRead(@Param("id") Long id, @Param("receiverId") Integer receiverId, @Param("readAt") LocalDateTime readAt);
+
+    /**
+     * 软删除单条消息（按用户维度：任何登录用户都可删除任意消息，删除者视图不再显示，对方仍可见）
+     */
+    int softDelete(@Param("id") Long id, @Param("userId") Integer userId);
+
+    /**
+     * 批量软删除（按用户维度：任何登录用户都可删除任意消息）
+     */
+    int softDeleteBatch(@Param("ids") List<Long> ids, @Param("userId") Integer userId);
+
+    /**
+     * 撤回单条消息（仅当发送者是本人）
+     */
+    int revoke(@Param("id") Long id, @Param("senderId") Integer senderId, @Param("revokedAt") LocalDateTime revokedAt);
 }

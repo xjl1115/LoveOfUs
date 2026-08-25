@@ -11,6 +11,9 @@
         <result property="isRead" column="is_read"/>
         <result property="readAt" column="read_at"/>
         <result property="createdAt" column="created_at"/>
+        <result property="isDeleted" column="is_deleted"/>
+        <result property="revoked" column="revoked"/>
+        <result property="revokedAt" column="revoked_at"/>
     </resultMap>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
@@ -21,16 +24,26 @@
     </insert>
 
     <select id="selectById" resultMap="chatMessageMap">
-        SELECT id, sender_id, receiver_id, content, msg_type, is_read, read_at, created_at
+        SELECT id, sender_id, receiver_id, content, msg_type, is_read, read_at, created_at,
+               is_deleted, revoked, revoked_at
         FROM chat_message WHERE id = #{id}
     </select>
 
     <select id="selectConversation" resultMap="chatMessageMap">
-        SELECT id, sender_id, receiver_id, content, msg_type, is_read, read_at, created_at
-        FROM chat_message
-        WHERE (sender_id = #{userId} AND receiver_id = #{peerId})
-           OR (sender_id = #{peerId} AND receiver_id = #{userId})
-        ORDER BY created_at ASC, id ASC
+        SELECT m.id, m.sender_id, m.receiver_id, m.content, m.msg_type, m.is_read, m.read_at,
+               m.created_at, m.is_deleted, m.revoked, m.revoked_at
+        FROM chat_message m
+        WHERE ((m.sender_id = #{userId} AND m.receiver_id = #{peerId})
+            OR (m.sender_id = #{peerId} AND m.receiver_id = #{userId}))
+          -- 排除当前用户已删除的消息（发送者删除走 is_deleted 字段；接收者删除走 chat_message_delete 表）
+          AND NOT (
+              (m.sender_id = #{userId} AND m.is_deleted = 1)
+              OR EXISTS (
+                  SELECT 1 FROM chat_message_delete d
+                  WHERE d.message_id = m.id AND d.user_id = #{userId}
+              )
+          )
+        ORDER BY m.created_at ASC, m.id ASC
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
@@ -49,6 +62,27 @@
         UPDATE chat_message
         SET is_read = 1, read_at = #{readAt}
         WHERE id = #{id} AND receiver_id = #{receiverId} AND is_read = 0
+    </update>
+
+    <!-- 删除只影响本人视图：任何人可以删除任意消息，被删除的消息不再出现在删除者视图，对方仍可见。
+         通过 chat_message_delete 表按用户维度记录删除状态，已存在则忽略，保证幂等。 -->
+    <insert id="softDelete">
+        INSERT IGNORE INTO chat_message_delete (message_id, user_id)
+        VALUES (#{id}, #{userId})
+    </insert>
+
+    <insert id="softDeleteBatch">
+        INSERT IGNORE INTO chat_message_delete (message_id, user_id) VALUES
+        <foreach collection="ids" item="id" separator=",">
+            (#{id}, #{userId})
+        </foreach>
+    </insert>
+
+    <!-- 撤回：仅本人发送的消息 -->
+    <update id="revoke">
+        UPDATE chat_message
+        SET revoked = 1, revoked_at = #{revokedAt}
+        WHERE id = #{id} AND sender_id = #{senderId} AND revoked = 0
     </update>
 
 </mapper>
