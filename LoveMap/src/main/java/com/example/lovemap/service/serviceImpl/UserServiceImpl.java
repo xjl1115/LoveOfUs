@@ -55,7 +55,8 @@ public class UserServiceImpl implements UserService {
             return Result.error(ResultCode.NOT_FOUND, "用户不存在");
         }
 
-        String cacheKey = ServiceHelper.buildCacheKey(UserConstant.USER_INFO, user.getGroupId(), user.getId());
+        // 缓存 key 必须按 userId 区分：情侣共享 groupId，用 groupId 拼会导致 A/B 互相看到对方的 UserVO
+        String cacheKey = UserConstant.USER_INFO + user.getId();
 
         // 1. 尝试从 Redis 缓存获取
         UserVO cached = ServiceHelper.getFromCache(redisTemplate, objectMapper, cacheKey, UserVO.class);
@@ -180,8 +181,8 @@ public class UserServiceImpl implements UserService {
         }
         log.info("用户信息更新成功, userId:{}", userId);
 
-        // 6. 清除 Redis 缓存（有 groupId 用 groupId，否则用 userId）
-        redisTemplate.delete(ServiceHelper.buildCacheKey(UserConstant.USER_INFO, user.getGroupId(), user.getId()));
+        // 6. 清除 Redis 缓存（按 userId 清除，与查询时使用一致）
+        redisTemplate.delete(UserConstant.USER_INFO + user.getId());
 
         // 7. 返回更新后的信息
         return getUserInfo(userId);
@@ -198,7 +199,8 @@ public class UserServiceImpl implements UserService {
             return Result.error(ResultCode.NOT_FOUND, "用户不存在");
         }
 
-        String cacheKey = ServiceHelper.buildCacheKey(UserConstant.USER_STATS, user.getGroupId(), user.getId());
+        // 同上，缓存按 userId 区分，避免情侣间的 stats 缓存互相覆盖
+        String cacheKey = UserConstant.USER_STATS + user.getId();
 
         // 1. 尝试从 Redis 缓存获取
         UserStatsVO cached = ServiceHelper.getFromCache(redisTemplate, objectMapper, cacheKey, UserStatsVO.class);
@@ -227,7 +229,7 @@ public class UserServiceImpl implements UserService {
     public void clearUserStatsCache(Integer userId) {
         User user = userMapper.selectById(userId);
         if (user == null) return;
-        String cacheKey = ServiceHelper.buildCacheKey(UserConstant.USER_STATS, user.getGroupId(), user.getId());
+        String cacheKey = UserConstant.USER_STATS + user.getId();
         redisTemplate.delete(cacheKey);
         log.debug("已清除用户 {} 的统计数据缓存, key: {}", userId, cacheKey);
     }
