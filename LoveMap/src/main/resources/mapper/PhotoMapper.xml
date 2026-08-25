@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.lovemap.mapper.PhotoMapper">
+
+    <insert id="batchInsert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO photo (user_id, group_id ,storage_path, taken_date, location_name, city, province, country, description, created_at)
+        VALUES
+        <foreach collection="photos" item="photo" separator=",">
+            (#{photo.userId}, #{photo.groupId}, #{photo.storagePath}, #{photo.takenDate}, #{photo.locationName}, #{photo.city},
+             #{photo.province}, #{photo.country}, #{photo.description}, NOW())
+        </foreach>
+    </insert>
+
+    <select id="selectById" resultType="com.example.lovemap.model.entity.Photo">
+        SELECT id, user_id, group_id, storage_path, taken_date, location_name, city, province, country, description, is_deleted, created_at
+        FROM photo
+        WHERE id = #{id}
+    </select>
+
+    <!-- 时间线：按情侣组查询 -->
+    <select id="selectTimelineByGroupId" resultType="com.example.lovemap.model.vo.TimelinePhotoVO">
+        SELECT p.id,
+               p.storage_path,
+               DATE_FORMAT(p.taken_date, '%Y-%m-%d') AS taken_date,
+               p.country,
+               COALESCE(pr.provence, p.province) AS provence,
+               p.city,
+               p.location_name,
+               p.description
+        FROM photo p
+        LEFT JOIN provence pr ON pr.id = p.province
+        WHERE p.group_id = #{groupId}
+          AND p.is_deleted = 0
+          AND p.taken_date IS NOT NULL
+
+        <if test="startDate != null">
+            AND p.taken_date &gt;= #{startDate}
+        </if>
+        <if test="endDate != null">
+            AND p.taken_date &lt;= #{endDate}
+        </if>
+        <if test="provence != null and provence != ''">
+            AND COALESCE(pr.provence, p.province) = #{provence}
+        </if>
+        <if test="city != null and city != ''">
+            AND p.city = #{city}
+        </if>
+        ORDER BY p.taken_date DESC, p.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- 时间线：按个人查询 -->
+    <select id="selectTimelineByUserId" resultType="com.example.lovemap.model.vo.TimelinePhotoVO">
+        SELECT p.id,
+               p.storage_path,
+               DATE_FORMAT(p.taken_date, '%Y-%m-%d') AS taken_date,
+               p.country,
+               COALESCE(pr.provence, p.province) AS provence,
+               p.city,
+               p.location_name,
+               p.description
+        FROM photo p
+        LEFT JOIN provence pr ON pr.id = p.province
+        WHERE p.user_id = #{userId}
+          AND p.is_deleted = 0
+          AND p.taken_date IS NOT NULL
+
+        <if test="startDate != null">
+            AND p.taken_date &gt;= #{startDate}
+        </if>
+        <if test="endDate != null">
+            AND p.taken_date &lt;= #{endDate}
+        </if>
+        <if test="provence != null and provence != ''">
+            AND COALESCE(pr.provence, p.province) = #{provence}
+        </if>
+        <if test="city != null and city != ''">
+            AND p.city = #{city}
+        </if>
+        ORDER BY p.taken_date DESC, p.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- 统计时间线照片总数：按情侣组 -->
+    <select id="countTimelineByGroupId" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM photo p
+        LEFT JOIN provence pr ON pr.id = p.province
+        WHERE p.group_id = #{groupId}
+          AND (p.is_deleted IS NULL OR p.is_deleted = 0)
+          AND p.taken_date IS NOT NULL
+
+        <if test="startDate != null">
+            AND p.taken_date &gt;= #{startDate}
+        </if>
+        <if test="endDate != null">
+            AND p.taken_date &lt;= #{endDate}
+        </if>
+        <if test="provence != null and provence != ''">
+            AND COALESCE(pr.provence, p.province) = #{provence}
+        </if>
+        <if test="city != null and city != ''">
+            AND p.city = #{city}
+        </if>
+    </select>
+
+    <!-- 统计时间线照片总数：按个人 -->
+    <select id="countTimelineByUserId" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM photo p
+        LEFT JOIN provence pr ON pr.id = p.province
+        WHERE p.user_id = #{userId}
+          AND (p.is_deleted IS NULL OR p.is_deleted = 0)
+          AND p.taken_date IS NOT NULL
+
+        <if test="startDate != null">
+            AND p.taken_date &gt;= #{startDate}
+        </if>
+        <if test="endDate != null">
+            AND p.taken_date &lt;= #{endDate}
+        </if>
+        <if test="provence != null and provence != ''">
+            AND COALESCE(pr.provence, p.province) = #{provence}
+        </if>
+        <if test="city != null and city != ''">
+            AND p.city = #{city}
+        </if>
+    </select>
+
+    <!-- 物理删除照片 -->
+    <delete id="deleteById">
+        DELETE FROM photo WHERE id = #{id}
+    </delete>
+
+    <!-- 查询照片详情（关联用户昵称） -->
+    <select id="selectPhotoDetailById" resultType="com.example.lovemap.model.vo.PhotoDetailVO">
+        SELECT p.id,
+               p.storage_path,
+               DATE_FORMAT(p.taken_date, '%Y-%m-%d') AS taken_date,
+               p.location_name,
+               p.country,
+               p.city,
+               COALESCE(pr.provence, p.province) AS province,
+               p.description,
+               p.user_id   AS 'uploader.id',
+               u.nickname  AS 'uploader.nickname',
+               p.created_at
+        FROM photo p
+                 LEFT JOIN user u ON p.user_id = u.id
+                 LEFT JOIN provence pr ON pr.id = p.province
+        WHERE p.id = #{id}
+          AND (p.is_deleted IS NULL OR p.is_deleted = 0)
+    </select>
+
+    <!-- 查询上一张照片ID（按 taken_date DESC, id DESC 排序中，比当前更新的那张） -->
+    <select id="selectPrevPhotoId" resultType="java.lang.Long">
+        SELECT id
+        FROM photo
+        WHERE user_id = #{userId}
+          AND (is_deleted IS NULL OR is_deleted = 0)
+          AND (taken_date > #{takenDate} OR (taken_date = #{takenDate} AND id > #{id}))
+        ORDER BY taken_date ASC, id ASC
+        LIMIT 1
+    </select>
+
+    <!-- 查询下一张照片ID（按 taken_date DESC, id DESC 排序中，比当前更旧的那张） -->
+    <select id="selectNextPhotoId" resultType="java.lang.Long">
+        SELECT id
+        FROM photo
+        WHERE user_id = #{userId}
+          AND (is_deleted IS NULL OR is_deleted = 0)
+          AND (taken_date &lt; #{takenDate} OR (taken_date = #{takenDate} AND id &lt; #{id}))
+        ORDER BY taken_date DESC, id DESC
+        LIMIT 1
+    </select>
+
+    <!-- 导出：批量查询 -->
+    <select id="selectBatchIds" resultType="com.example.lovemap.model.entity.Photo">
+        SELECT id, user_id, storage_path, taken_date, location_name, city, province, country,
+               description, created_at
+        FROM photo
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <!-- 导出：查询情侣组所有照片ID -->
+    <select id="selectPhotoIdsByGroupId" resultType="java.lang.Long">
+        SELECT id FROM photo
+        WHERE group_id = #{groupId}
+          AND (is_deleted IS NULL OR is_deleted = 0)
+    </select>
+
+    <!-- 导出：查询个人所有照片ID -->
+    <select id="selectPhotoIdsByUserId" resultType="java.lang.Long">
+        SELECT id FROM photo
+        WHERE user_id = #{userId}
+          AND (is_deleted IS NULL OR is_deleted = 0)
+    </select>
+
+    <!-- 导出：查询情侣组指定日期范围的照片ID -->
+    <select id="selectPhotoIdsByGroupIdAndDateRange" resultType="java.lang.Long">
+        SELECT id FROM photo
+        WHERE group_id = #{groupId}
+          AND (is_deleted IS NULL OR is_deleted = 0)
+          AND taken_date BETWEEN #{startDate} AND #{endDate}
+    </select>
+
+    <!-- 导出：查询个人指定日期范围的照片ID -->
+    <select id="selectPhotoIdsByUserIdAndDateRange" resultType="java.lang.Long">
+        SELECT id FROM photo
+        WHERE user_id = #{userId}
+          AND (is_deleted IS NULL OR is_deleted = 0)
+          AND taken_date BETWEEN #{startDate} AND #{endDate}
+    </select>
+
+</mapper>

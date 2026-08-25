@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.lovemap.mapper.GroupMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.lovemap.model.entity.Group">
+        <id column="id" property="id"/>
+        <result column="group_id" property="groupId"/>
+        <result column="user1_id" property="user1Id"/>
+        <result column="user2_id" property="user2Id"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <sql id="BaseColumns">
+        id, group_id, user1_id, user2_id, created_at
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `group` (group_id, user1_id, user2_id, created_at)
+        VALUES (#{groupId}, #{user1Id}, #{user2Id}, NOW())
+    </insert>
+</mapper>

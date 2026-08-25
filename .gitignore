@@ -1,0 +1,73 @@
+# ==================== Java / Maven ====================
+target/
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+.factorypath
+
+# Crash 报告与运行数据
+hs_err_pid*
+replay_pid*
+
+# ==================== Node / Vite / 前端 ====================
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+.cache/
+.npm/
+.eslintcache
+
+# ==================== 日志 ====================
+*.log
+logs/
+
+# ==================== Nginx 部署 ====================
+# 仅忽略运行时 PID/日志与已部署的构建产物（dist 同步过来的），
+# 保留 nginx.conf、contrib/、docs/、html/50x.html 等配置文件
+nginx-1.28.0/logs/
+nginx-1.28.0/html/assets/
+nginx-1.28.0/html/index.html
+nginx-1.28.0/html/favicon.svg
+# 二进制可执行文件不入仓
+nginx-1.28.0/nginx.exe
+
+# ==================== 环境变量 / 凭据 ====================
+.env
+.env.*
+!.env.example
+
+# ==================== OS 杂项 ====================
+.DS_Store
+Thumbs.db
+ehthumbs.db
+ehthumbs_vista.db
+desktop.ini
+
+# ==================== 临时文件 ====================
+*.tmp
+*.bak
+*.swp
+*.swo
+~$*
+
+# ==================== Spring Boot ====================
+HELP.md
+!gradle/wrapper/gradle-wrapper.jar
+
+# ==================== MyBatis Generator ====================
+src/main/resources/mapper/**/*.xml.bak

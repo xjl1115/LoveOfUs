@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.lovemap.mapper.PhotoAlbumMapper">
+
+    <insert id="batchInsert">
+        INSERT IGNORE INTO photo_album (photo_id, album_id, created_at)
+        VALUES
+        <foreach collection="photoIds" item="photoId" separator=",">
+            (#{photoId}, #{albumId}, NOW())
+        </foreach>
+    </insert>
+
+    <delete id="deleteByAlbumIdAndPhotoId">
+        DELETE FROM photo_album
+        WHERE album_id = #{albumId} AND photo_id = #{photoId}
+    </delete>
+
+    <select id="countByAlbumIdAndPhotoId" resultType="int">
+        SELECT COUNT(*)
+        FROM photo_album
+        WHERE album_id = #{albumId} AND photo_id = #{photoId}
+    </select>
+
+    <delete id="deleteByPhotoId">
+        DELETE FROM photo_album WHERE photo_id = #{photoId}
+    </delete>
+
+    <select id="selectAlbumIdsByPhotoId" resultType="java.lang.Long">
+        SELECT album_id FROM photo_album WHERE photo_id = #{photoId}
+    </select>
+
+    <select id="selectAlbumsByPhotoId" resultType="com.example.lovemap.model.vo.PhotoDetailVO$AlbumInfo">
+        SELECT a.id, a.name
+        FROM photo_album pa
+                 JOIN album a ON pa.album_id = a.id
+        WHERE pa.photo_id = #{photoId}
+    </select>
+
+    <select id="selectPhotoIdsByAlbumId" resultType="java.lang.Long">
+        SELECT photo_id
+        FROM photo_album
+        WHERE album_id = #{albumId}
+    </select>
+
+</mapper>

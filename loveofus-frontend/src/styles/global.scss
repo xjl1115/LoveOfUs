@@ -1,0 +1,264 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  // 触摸优化：防止 300ms 延迟
+  touch-action: manipulation;
+}
+
+html, body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  color: $text-primary;
+  background-color: $bg-color;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  // 防止 iOS 橡皮筋效果
+  overscroll-behavior: none;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+// 安全区域适配
+.safe-area-bottom {
+  padding-bottom: constant(safe-area-inset-bottom);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+// 安全区域变量
+:root {
+  --safe-area-top: env(safe-area-inset-top);
+  --safe-area-bottom: env(safe-area-inset-bottom);
+  --safe-area-left: env(safe-area-inset-left);
+  --safe-area-right: env(safe-area-inset-right);
+}
+
+// 底部 Tab 安全区域适配
+.tabbar-safe-area {
+  padding-bottom: calc(50px + env(safe-area-inset-bottom));
+}
+
+// 页面底部安全区域
+.page-safe-bottom {
+  padding-bottom: calc(80px + env(safe-area-inset-bottom));
+}
+
+// 页面容器
+.page-container {
+  min-height: 100vh;
+  background-color: $bg-color;
+  padding-bottom: 80px;
+}
+
+// 卡片样式
+.card {
+  background: $bg-white;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-sm;
+  padding: $spacing-md;
+  margin: $spacing-md;
+}
+
+// 文字省略
+.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ellipsis-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+// Flex 布局
+.flex {
+  display: flex;
+}
+
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.flex-column {
+  display: flex;
+  flex-direction: column;
+}
+
+// 按钮样式
+.btn-primary {
+  background: linear-gradient(135deg, $primary-color 0%, $primary-light 100%);
+  color: $text-white;
+  border: none;
+  border-radius: $radius-xl;
+  padding: 12px 24px;
+  font-size: $font-md;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+
+  &:active {
+    transform: scale(0.98);
+    opacity: 0.9;
+  }
+}
+
+// 空状态
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: $text-tertiary;
+
+  .empty-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+  }
+
+  .empty-text {
+    font-size: $font-md;
+  }
+}
+
+// 加载状态
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: $text-tertiary;
+}
+
+// 滚动条样式
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: $border-color;
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: $text-tertiary;
+}
+
+// 深色模式样式
+.dark-mode {
+  // 背景色
+  --van-background: #1a1a1a;
+  --van-background-2: #2d2d2d;
+  --van-background-3: #3d3d3d;
+
+  // 文字色
+  --van-text-color: #ffffff;
+  --van-text-color-2: #b0b0b0;
+  --van-text-color-3: #808080;
+
+  // 边框色
+  --van-border-color: #3d3d3d;
+
+  // 覆盖 Vant 组件样式
+  .van-nav-bar {
+    background-color: #2d2d2d;
+    .van-nav-bar__title {
+      color: #ffffff;
+    }
+  }
+
+  .van-cell {
+    background-color: #2d2d2d;
+    color: #ffffff;
+    &::after {
+      border-color: #3d3d3d;
+    }
+  }
+
+  .van-cell-group {
+    background-color: transparent;
+  }
+
+  .van-tabbar {
+    background-color: #2d2d2d;
+    border-top-color: #3d3d3d;
+  }
+
+  .van-field__control {
+    color: #ffffff;
+  }
+
+  .van-popup {
+    background-color: #2d2d2d;
+  }
+
+  // 页面背景
+  .page-container,
+  .login-page,
+  .profile-page,
+  .home-page,
+  .albums-page,
+  .album-detail-page,
+  .photo-detail-page,
+  .upload-page,
+  .export-page {
+    background-color: #1a1a1a;
+  }
+
+  // 卡片样式
+  .card,
+  .stats-card,
+  .user-card,
+  .album-card,
+  .photo-card {
+    background-color: #2d2d2d;
+    color: #ffffff;
+  }
+
+  // 文字颜色
+  h1, h2, h3, h4, h5, h6, p, span {
+    color: inherit;
+  }
+
+  // 登录页面特殊处理
+  .login-container {
+    background-color: #2d2d2d;
+  }
+
+  .logo-title {
+    color: $primary-color;
+  }
+
+  .logo-subtitle,
+  .logo-desc {
+    color: var(--van-text-color-2);
+  }
+
+  // 设置列表
+  .settings-group {
+    .van-cell {
+      background-color: #2d2d2d;
+      &__title {
+        color: #ffffff;
+      }
+    }
+  }
+}

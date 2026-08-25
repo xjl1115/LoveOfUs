@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.lovemap.mapper.AnniversaryMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.lovemap.model.entity.Anniversary">
+        <id column="id" property="id"/>
+        <result column="group_id" property="groupId"/>
+        <result column="name" property="name"/>
+        <result column="anniversary_date" property="anniversaryDate"/>
+        <result column="is_recurring" property="isRecurring"/>
+        <result column="remind_days" property="remindDays"/>
+        <result column="description" property="description"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="BaseColumns">
+        id, group_id, name, anniversary_date,
+        is_recurring, remind_days, description, created_at, updated_at
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO anniversary (group_id, name, anniversary_date,
+                                 is_recurring, remind_days, description, created_at, updated_at)
+        VALUES (#{groupId}, #{name}, #{anniversaryDate},
+                #{isRecurring}, #{remindDays}, #{description}, NOW(), NOW())
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/> FROM anniversary
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectByIdAndGroupId" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/> FROM anniversary
+        WHERE id = #{id} AND group_id = #{groupId}
+    </select>
+
+    <select id="selectByGroupId" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/> FROM anniversary
+        WHERE group_id = #{groupId}
+        ORDER BY anniversary_date ASC
+    </select>
+
+    <update id="update">
+        UPDATE anniversary
+        SET name = #{name},
+            anniversary_date = #{anniversaryDate},
+            is_recurring = #{isRecurring},
+            remind_days = #{remindDays},
+            description = #{description},
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <update id="deleteById">
+        DELETE FROM anniversary
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectNeedRemind" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/> FROM anniversary
+        WHERE is_recurring = 1
+          AND remind_days > 0
+          AND DATEDIFF(
+            anniversary_date,
+            CURDATE()
+          ) = #{days}
+    </select>
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/> FROM anniversary
+        ORDER BY anniversary_date ASC
+    </select>
+
+</mapper>

@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.lovemap.mapper.UserMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.lovemap.model.entity.User">
+        <id column="id" property="id"/>
+        <result column="nickname" property="nickname"/>
+        <result column="avatar_url" property="avatarUrl"/>
+        <result column="phone" property="phone"/>
+        <result column="email" property="email"/>
+        <result column="password" property="password"/>
+        <result column="partner_id" property="partnerId"/>
+        <result column="is_bound" property="isBound"/>
+        <result column="group_id" property="groupId"/>
+        <result column="relationship_start" property="relationshipStart"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="BaseColumns">
+        id, nickname, avatar_url, phone, email, password,
+        partner_id, is_bound, group_id,
+        relationship_start,
+        created_at, updated_at
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO user (nickname, avatar_url, phone, email, password, is_bound, created_at, updated_at)
+        VALUES (#{nickname}, #{avatarUrl}, #{phone}, #{email}, #{password}, #{isBound}, NOW(), NOW())
+    </insert>
+
+    <select id="findByEmail" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM user
+        WHERE email = #{email}
+        LIMIT 1
+    </select>
+
+    <select id="findByPhone" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM user
+        WHERE phone = #{phone}
+        LIMIT 1
+    </select>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM user
+        WHERE id = #{id}
+        LIMIT 1
+    </select>
+
+    <update id="updatePassword">
+        UPDATE user
+        SET password = #{password},
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <update id="updatePartnerBind">
+        UPDATE user
+        SET partner_id = #{partnerId},
+            group_id = #{groupId},
+            is_bound = 1,
+            relationship_start = CURDATE(),
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateUser">
+        UPDATE user
+        <set>
+            <if test="nickname != null">nickname = #{nickname},</if>
+            <if test="phone != null">phone = #{phone},</if>
+            <if test="email != null">email = #{email},</if>
+            <if test="avatarUrl != null">avatar_url = #{avatarUrl},</if>
+            <if test="password != null">password = #{password},</if>
+            updated_at = NOW()
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <select id="countPhotoByUserId" resultType="java.lang.Integer">
+        SELECT COUNT(*)
+        FROM photo
+        WHERE user_id = #{userId}
+          AND (is_deleted IS NULL OR is_deleted = 0)
+    </select>
+
+    <select id="countPhotoByGroupId" resultType="java.lang.Integer">
+        SELECT COUNT(*)
+        FROM photo
+        WHERE group_id = #{groupId}
+          AND (is_deleted IS NULL OR is_deleted = 0)
+    </select>
+
+    <select id="countAlbumByUserId" resultType="java.lang.Integer">
+        SELECT COUNT(*)
+        FROM album
+        WHERE group_id = (SELECT group_id FROM user WHERE id = #{userId})
+    </select>
+
+    <select id="countCityByUserId" resultType="java.lang.Integer">
+        SELECT COUNT(DISTINCT city)
+        FROM photo
+        WHERE user_id = #{userId}
+          AND city IS NOT NULL
+          AND city != ''
+          AND (is_deleted IS NULL OR is_deleted = 0)
+    </select>
+
+    <select id="countCityByGroupId" resultType="java.lang.Integer">
+        SELECT COUNT(DISTINCT city)
+        FROM photo
+        WHERE group_id = #{groupId}
+          AND city IS NOT NULL
+          AND city != ''
+          AND (is_deleted IS NULL OR is_deleted = 0)
+    </select>
+
+    <select id="countProvinceByUserId" resultType="com.example.lovemap.model.vo.UserStatsVO$ProvinceStatVO">
+        SELECT pr.provence AS name, COUNT(p.id) AS count, MAX(p.taken_date) AS takenDate
+        FROM photo p
+        JOIN provence pr ON p.province = pr.id
+        WHERE p.user_id = #{userId}
+          AND p.province IS NOT NULL
+          AND (p.is_deleted IS NULL OR p.is_deleted = 0)
+        GROUP BY pr.provence
+        ORDER BY count DESC
+    </select>
+
+    <select id="countProvinceByGroupId" resultType="com.example.lovemap.model.vo.UserStatsVO$ProvinceStatVO">
+        SELECT pr.provence AS name, COUNT(p.id) AS count, MAX(p.taken_date) AS takenDate
+        FROM photo p
+        JOIN provence pr ON p.province = pr.id
+        WHERE p.group_id = #{groupId}
+          AND p.province IS NOT NULL
+          AND (p.is_deleted IS NULL OR p.is_deleted = 0)
+        GROUP BY pr.provence
+        ORDER BY count DESC
+    </select>
+
+    <update id="clearPartnerBind">
+        UPDATE user
+        SET partner_id = NULL,
+            group_id = NULL,
+            is_bound = 0,
+            relationship_start = NULL,
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectByGroupId" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM user
+        WHERE group_id = #{groupId}
+    </select>
+
+    <update id="deleteAccount">
+        UPDATE user
+        SET nickname = #{nickname},
+            phone = NULL,
+            email = NULL,
+            password = NULL,
+            avatar_url = NULL,
+            partner_id = NULL,
+            is_bound = 0,
+            group_id = NULL,
+            relationship_start = NULL,
+            is_deleted = 1,
+            deleted_at = NOW(),
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM user
+        WHERE is_deleted IS NULL OR is_deleted = 0
+    </select>
+
+</mapper>

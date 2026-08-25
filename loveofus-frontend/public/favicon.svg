@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FF6B6B"/>
+      <stop offset="100%" style="stop-color:#EE5A24"/>
+    </linearGradient>
+  </defs>
+  <!-- 背景圆 -->
+  <circle cx="50" cy="50" r="48" fill="url(#grad)" opacity="0.1"/>
+  <!-- 相机轮廓 -->
+  <rect x="20" y="32" width="60" height="42" rx="8" fill="none" stroke="url(#grad)" stroke-width="4"/>
+  <rect x="32" y="27" width="36" height="10" rx="4" fill="url(#grad)" opacity="0.8"/>
+  <!-- 镜头 -->
+  <circle cx="50" cy="55" r="14" fill="none" stroke="url(#grad)" stroke-width="3.5"/>
+  <circle cx="50" cy="55" r="6" fill="url(#grad)" opacity="0.6"/>
+  <!-- 闪光灯 -->
+  <circle cx="68" cy="40" r="3" fill="#FF6B6B"/>
+  <!-- 爱心 -->
+  <path d="M50 82
+           C50 82 34 70 28 60
+           C22 50 24 38 32 34
+           C40 30 46 34 50 40
+           C54 34 60 30 68 34
+           C76 38 78 50 72 60
+           C66 70 50 82 50 82Z"
+        fill="url(#grad)" opacity="0.9"/>
+</svg>

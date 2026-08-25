@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.lovemap.mapper.AlbumMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO album (group_id, user_id, name, description)
+        VALUES (#{groupId}, #{userId}, #{name}, #{description})
+    </insert>
+
+    <select id="selectById" resultType="com.example.lovemap.model.entity.Album">
+        SELECT id, group_id, user_id, name, description, created_at, updated_at
+        FROM album
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectAlbumById" resultType="com.example.lovemap.model.vo.AlbumVO">
+        SELECT a.id,
+               a.name,
+               a.description,
+               a.created_at,
+               a.updated_at,
+               (SELECT COUNT(*) FROM photo_album pa WHERE pa.album_id = a.id) AS photo_count,
+               (SELECT p.storage_path
+                FROM photo_album pa
+                         JOIN photo p ON pa.photo_id = p.id
+                WHERE pa.album_id = a.id
+                ORDER BY p.created_at DESC
+                LIMIT 1) AS cover_photo_url
+        FROM album a
+        WHERE a.id = #{id}
+    </select>
+
+    <select id="selectLatestPhotoPathByGroupId" resultType="java.lang.String">
+        SELECT storage_path
+        FROM photo
+        WHERE group_id = #{groupId}
+          AND (is_deleted IS NULL OR is_deleted = 0)
+        ORDER BY created_at DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectLatestPhotoPathByUserId" resultType="java.lang.String">
+        SELECT storage_path
+        FROM photo
+        WHERE user_id = #{userId}
+          AND (is_deleted IS NULL OR is_deleted = 0)
+        ORDER BY created_at DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectListByUser" resultType="com.example.lovemap.model.vo.AlbumVO">
+        SELECT a.id,
+               a.group_id,
+               a.name,
+               a.description,
+               a.created_at,
+               a.updated_at,
+               (SELECT COUNT(*) FROM photo_album pa WHERE pa.album_id = a.id) AS photo_count,
+               (SELECT p.storage_path
+                FROM photo_album pa
+                         JOIN photo p ON pa.photo_id = p.id
+                WHERE pa.album_id = a.id
+                ORDER BY p.created_at DESC
+                LIMIT 1) AS cover_photo_url
+        FROM album a
+        WHERE (a.group_id = #{groupId})
+           OR (a.group_id IS NULL AND a.user_id = #{userId})
+        ORDER BY a.created_at DESC
+    </select>
+
+    <update id="updateNameAndDescription">
+        UPDATE album
+        SET name        = #{name},
+            description = #{description}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM album WHERE id = #{id}
+    </delete>
+
+    <delete id="deletePhotoAlbumsByAlbumId">
+        DELETE FROM photo_album WHERE album_id = #{albumId}
+    </delete>
+
+    <select id="selectPhotosByAlbumId" resultType="com.example.lovemap.model.vo.AlbumDetailVO$PhotoInAlbumVO">
+        SELECT p.id,
+               p.storage_path,
+               p.taken_date,
+               p.location_name,
+               p.city,
+               COALESCE(pr.provence, p.province) AS province,
+               p.country,
+               p.description,
+               p.user_id,
+               u.nickname AS user_nickname
+        FROM photo_album pa
+                 JOIN photo p ON pa.photo_id = p.id
+                 LEFT JOIN user u ON p.user_id = u.id
+                 LEFT JOIN provence pr ON pr.id = p.province
+        WHERE pa.album_id = #{albumId}
+          AND (p.is_deleted IS NULL OR p.is_deleted = 0)
+        ORDER BY p.taken_date DESC, p.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countPhotosByAlbumId" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM photo_album pa
+                 JOIN photo p ON pa.photo_id = p.id
+        WHERE pa.album_id = #{albumId}
+          AND (p.is_deleted IS NULL OR p.is_deleted = 0)
+    </select>
+
+    <!-- 查询相册中仅属于该相册的独占照片（用于物理删除） -->
+    <select id="selectOrphanedPhotosByAlbumId" resultType="com.example.lovemap.model.entity.Photo">
+        SELECT p.id, p.storage_path
+        FROM photo p
+                 JOIN photo_album pa ON pa.photo_id = p.id
+        WHERE pa.album_id = #{albumId}
+          AND (SELECT COUNT(*) FROM photo_album WHERE photo_id = p.id) = 1
+    </select>
+
+    <!-- 批量物理删除照片 -->
+    <delete id="deletePhotosByIds">
+        DELETE FROM photo WHERE id IN
+        <foreach collection="ids" item="id" open="(" close=")" separator=",">
+            #{id}
+        </foreach>
+    </delete>
+
+    <!-- 查询相册中所有照片ID -->
+    <select id="selectPhotoIdsByAlbumId" resultType="java.lang.Long">
+        SELECT photo_id FROM photo_album WHERE album_id = #{albumId}
+    </select>
+
+    <!-- 查询用户/群组下所有相册ID（轻量，用于缓存清理） -->
+    <select id="selectAlbumIdsByGroupOrUser" resultType="java.lang.Long">
+        SELECT id FROM album
+        WHERE (group_id = #{groupId} OR (#{groupId} IS NULL AND user_id = #{userId}))
+          AND (is_deleted IS NULL OR is_deleted = 0)
+    </select>
+
+</mapper>
