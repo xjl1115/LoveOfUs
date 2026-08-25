@@ -164,6 +164,14 @@ export class NotificationSSE {
         this.emit('heartbeat', data)
       } catch { /* ignore */ }
     })
+
+    // 监听聊天已读回执（接收方在聊天页时，发送方会实时收到）
+    this.eventSource.addEventListener('chat-read', (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data) as { lastReadId: number; partnerId: number; readAt?: string }
+        this.emit('chat-read', data)
+      } catch { /* ignore */ }
+    })
   }
 
   // 指数退避重连
@@ -208,4 +216,19 @@ export class NotificationSSE {
     }
     this.listeners.clear()
   }
+}
+
+// 单例：跨组件共享 SSE 连接（避免每个组件各自建连）
+let _singleton: NotificationSSE | null = null
+
+/**
+ * 获取全局共享的 NotificationSSE 实例。
+ * 首次调用时自动 connect；后续调用复用同一实例并共享监听器。
+ */
+export function getNotificationSSE(): NotificationSSE {
+  if (!_singleton) {
+    _singleton = new NotificationSSE()
+    _singleton.connect()
+  }
+  return _singleton
 }

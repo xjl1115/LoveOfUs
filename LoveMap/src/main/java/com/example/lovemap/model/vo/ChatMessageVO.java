@@ -33,4 +33,10 @@ public class ChatMessageVO {
 
     /** 接收者已读时间 */
     private LocalDateTime readAt;
+
+    /** 是否撤回：0=否 1=是 */
+    private Integer revoked;
+
+    /** 撤回时间 */
+    private LocalDateTime revokedAt;
 }

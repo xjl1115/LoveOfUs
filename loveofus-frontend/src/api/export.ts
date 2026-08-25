@@ -5,10 +5,16 @@ import type { ExportRecord } from '@/types'
 export function createExport(data: {
   startDate: string
   endDate: string
-  format: 'zip' | 'pdf' | 'video'
+  format: 'zip' | 'pdf'
+  exportType?: 'all' | 'date' | 'selected' | 'album'
+  groupBy?: 'none' | 'takenDate' | 'createdAt'
+  photoIds?: number[]
+  albumId?: number
   options?: Record<string, any>
 }) {
-  return request.post<ExportRecord>('/exports', data)
+  // 默认按日期范围筛选，与页面交互一致
+  const payload = { exportType: 'date', ...data }
+  return request.post<ExportRecord>('/exports', payload)
 }
 
 // 获取导出历史

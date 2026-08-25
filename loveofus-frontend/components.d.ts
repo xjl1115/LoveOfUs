@@ -11,8 +11,11 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AiFloatBtn: typeof import('./src/components/AiFloatBtn.vue')['default']
     BottomTab: typeof import('./src/components/BottomTab.vue')['default']
     ChinaMap: typeof import('./src/components/ChinaMap.vue')['default']
+    MessageBubble: typeof import('./src/components/MessageBubble.vue')['default']
+    QuickSuggestions: typeof import('./src/components/QuickSuggestions.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     SystemMessageFloatBtn: typeof import('./src/components/SystemMessageFloatBtn.vue')['default']

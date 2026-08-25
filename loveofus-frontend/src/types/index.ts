@@ -119,7 +119,7 @@ export interface ExportRecord {
   startDate: string
   endDate: string
   photoCount: number
-  format: 'zip' | 'pdf' | 'video'
+  format: 'zip' | 'pdf'
   status: 'pending' | 'processing' | 'completed' | 'failed'
   filePath?: string
   fileSize?: number

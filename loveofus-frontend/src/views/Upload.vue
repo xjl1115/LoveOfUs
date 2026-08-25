@@ -101,11 +101,11 @@
     </div>
 
     <!-- 日期选择器 -->
-    <van-popup v-model:show="showDatePicker" position="bottom">
+    <van-popup v-model:show="showDatePicker" position="bottom" @open="onDatePickerOpen">
       <van-picker
         title="选择日期"
         :columns="dateColumns"
-        :default-index="defaultDateIndex"
+        v-model="datePickerIndex"
         @confirm="onDateConfirm"
         @cancel="showDatePicker = false"
       />
@@ -294,17 +294,16 @@ const showDatePicker = ref(false)
 const showProvincePicker = ref(false)
 const showCityPicker = ref(false)
 
-// 日期选择器默认定位到当前日期
-const now = dayjs()
-const defaultDateIndex = [
-  now.year() - 2000,
-  now.month(),
-  Math.min(now.date() - 1, 27)  // 最多 28 天
-]
+// 实时计算今日。注：van-picker 的 v-model 是每列 value（不是索引）；
+// dateColumns 的 value 是 1-indexed 的，而 dayjs 是 0-indexed，需 +1 对齐；年份列 value 是绝对年份。
+function todayIndex(): number[] {
+  const t = dayjs()
+  return [t.year(), t.month() + 1, t.date()]
+}
 
-// 生成年份列（2000 年 ~ 今年）
-const curYear = now.year()
+// 年份列从 2000 到今年。curYear 也用 dayjs 即时计算，确保 picker 实例复用时仍取到真实当年
 const dateColumns = computed(() => {
+  const curYear = dayjs().year()
   const years = Array.from({ length: curYear - 2000 + 1 }, (_, i) => ({
     text: `${2000 + i}年`,
     value: 2000 + i
@@ -319,6 +318,14 @@ const dateColumns = computed(() => {
   }))
   return [years, months, days]
 })
+
+// picker 当前选中索引：初始值与每次 popup 打开时都即时重算为今日
+const datePickerIndex = ref<number[]>(todayIndex())
+
+// 每次 popup 打开都重新定位到"真正的今日"
+function onDatePickerOpen() {
+  datePickerIndex.value = todayIndex()
+}
 
 // 省份列表（单列）
 const provincePickerColumns = provinces.map(p => ({ text: p.name, value: p.name }))

@@ -9,7 +9,10 @@
         </div>
       </template>
       <template #right>
-        <van-icon name="photograph" size="20" @click="$router.push('/upload')" />
+        <van-icon name="photograph" size="20" @click="$router.push('/upload')" style="margin-right: 12px;" />
+        <van-badge :content="chatUnread.hasUnread ? chatUnread.count : ''" :max="99" :show-zero="false">
+          <van-icon name="chat-o" size="22" @click="goChat" />
+        </van-badge>
       </template>
     </van-nav-bar>
 
@@ -78,18 +81,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onActivated, computed } from 'vue'
+import { ref, onMounted, onActivated, onBeforeUnmount, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
 import ChinaMap from '@/components/ChinaMap.vue'
 import BottomTab from '@/components/BottomTab.vue'
 import { usePhotoStore } from '@/stores/photo'
+import { useChatUnreadStore } from '@/stores/chatUnread'
 import { getTimelinePhotos } from '@/api/photo'
 import { getUserStats } from '@/api/user'
 import type { ProvinceData } from '@/types'
 
 const router = useRouter()
 const photoStore = usePhotoStore()
+const chatUnread = useChatUnreadStore()
 
 const loading = ref(false)
 const refreshing = ref(false)
@@ -99,15 +104,32 @@ const activeProvince = computed(() => photoStore.activeProvince)
 const hasMore = computed(() => photoStore.hasMore)
 const timelineGroups = computed(() => photoStore.timelineGroups)
 
+function goChat() {
+  router.push('/chat')
+}
+
+let chatUnreadTimer: number | null = null
+
 onMounted(() => {
   loadUserStats()
   loadPhotos(true)
+  // 进入首页时拉一次未读数；之后每 30s 轮询一次
+  chatUnread.refresh()
+  chatUnreadTimer = window.setInterval(() => chatUnread.refresh(), 30_000)
 })
 
 // keep-alive 激活时刷新
 onActivated(() => {
   loadUserStats()
   loadPhotos(true)
+  chatUnread.refresh()
+})
+
+onBeforeUnmount(() => {
+  if (chatUnreadTimer) {
+    clearInterval(chatUnreadTimer)
+    chatUnreadTimer = null
+  }
 })
 
 async function loadUserStats() {

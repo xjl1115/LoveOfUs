@@ -19,8 +19,6 @@
               :key="album.id"
               class="album-card"
               @click="viewAlbum(album.id)"
-              @touchstart="handleTouchStart(album)"
-              @touchend="handleTouchEnd"
             >
               <div class="album-cover">
                 <img
@@ -57,8 +55,6 @@
               :key="album.id"
               class="album-card"
               @click="viewAlbum(album.id)"
-              @touchstart="handleTouchStart(album)"
-              @touchend="handleTouchEnd"
             >
               <div class="album-cover">
                 <img
@@ -191,8 +187,6 @@ const actionSheetActions = [
   { name: '删除', key: 'delete', color: '#ee0a24' }
 ]
 
-let longPressTimer: ReturnType<typeof setTimeout> | null = null
-
 onMounted(() => {
   loadAlbums()
 })
@@ -244,20 +238,6 @@ async function createAlbum() {
 
 function resetCreateForm() {
   createForm.value = { name: '', description: '' }
-}
-
-function handleTouchStart(album: Album) {
-  longPressTimer = setTimeout(() => {
-    selectedAlbum.value = album
-    showActionSheet.value = true
-  }, 500)
-}
-
-function handleTouchEnd() {
-  if (longPressTimer) {
-    clearTimeout(longPressTimer)
-    longPressTimer = null
-  }
 }
 
 async function onActionSelect(action: { key: string }) {

@@ -143,6 +143,7 @@ import {
   markAsRead,
   deleteNotification,
   getUnreadCount,
+  getNotificationSSE,
   NotificationSSE,
   type Notification
 } from '@/api/systemMessage'
@@ -369,15 +370,16 @@ function formatTime(dateStr: string) {
   return date.toLocaleDateString()
 }
 
-// SSE 连接实例
+// SSE 连接实例（全局共享，由 systemMessage 单例管理生命周期）
 let sse: NotificationSSE | null = null
+// 持有监听器引用，便于卸载时解除绑定
+const sseHandlers: { event: string; fn: (data: any) => void }[] = []
 
-// 初始化 SSE 连接
-function initSSE() {
-  sse = new NotificationSSE()
+// 注册 SSE 监听器（不主动建连，避免与其他组件重复连接）
+function registerSseListeners() {
+  sse = getNotificationSSE()
 
-  // 监听新通知
-  sse.on('new-notification', (msg: Notification) => {
+  const onNewNotification = (msg: Notification) => {
     unreadMessages.value.unshift(msg)
     unreadCount.value = unreadMessages.value.length
     // 显示新消息气泡
@@ -388,24 +390,27 @@ function initSSE() {
     bubbleTimer = setTimeout(() => {
       showNewMessageBubble.value = false
     }, 5000)
-  })
+  }
+  sseHandlers.push({ event: 'new-notification', fn: onNewNotification })
+  sse.on('new-notification', onNewNotification)
 
-  // 监听未读数更新
-  sse.on('unread-count', (data: { count: number }) => {
+  const onUnreadCount = (data: { count: number }) => {
     unreadCount.value = data.count
-  })
+  }
+  sseHandlers.push({ event: 'unread-count', fn: onUnreadCount })
+  sse.on('unread-count', onUnreadCount)
 
-  // 连接成功
-  sse.on('connected', () => {
+  const onConnected = () => {
     console.log('[SSE] 消息通知连接已建立')
-  })
+  }
+  sseHandlers.push({ event: 'connected', fn: onConnected })
+  sse.on('connected', onConnected)
 
-  // 连接错误
-  sse.on('error', () => {
+  const onError = () => {
     console.warn('[SSE] 消息通知连接错误')
-  })
-
-  sse.connect()
+  }
+  sseHandlers.push({ event: 'error', fn: onError })
+  sse.on('error', onError)
 }
 
 onMounted(async () => {
@@ -417,14 +422,17 @@ onMounted(async () => {
     // 忽略错误
   }
 
-  // 初始化 SSE 连接
-  initSSE()
+  // 注册 SSE 监听器（全局单例负责建连/重连）
+  registerSseListeners()
 })
 
 onUnmounted(() => {
-  // 关闭 SSE 连接
+  // 全局单例的生命周期独立于本组件，仅卸载本组件添加的监听器
   if (sse) {
-    sse.close()
+    for (const h of sseHandlers) {
+      sse.off(h.event, h.fn)
+    }
+    sseHandlers.length = 0
     sse = null
   }
   // 清除气泡定时器

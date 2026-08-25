@@ -33,4 +33,13 @@ public class ChatMessage {
 
     /** 消息发送时间 */
     private LocalDateTime createdAt;
+
+    /** 发送者是否软删除：0=否 1=是（仅本人视图隐藏） */
+    private Integer isDeleted;
+
+    /** 是否撤回：0=否 1=是（双方视图都标记撤回态） */
+    private Integer revoked;
+
+    /** 撤回时间 */
+    private LocalDateTime revokedAt;
 }

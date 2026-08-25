@@ -10,6 +10,8 @@
       </keep-alive>
     </transition>
   </router-view>
+  <!-- AI 全局入口（已登录自动出现） -->
+  <AiFloatBtn />
 </template>
 
 <script setup lang="ts">
@@ -19,6 +21,7 @@ import { ref } from 'vue'
  */
 import { useActive } from '@/composables/useActive'
 useActive()
+import AiFloatBtn from '@/components/AiFloatBtn.vue'
 
 // 用于全局注册 van-dialog，供 showDialog / showConfirmDialog 使用
 const dummyDialogVisible = ref(false)

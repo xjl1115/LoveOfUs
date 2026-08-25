@@ -29,12 +29,12 @@
       <div class="section">
         <h3 class="section-title">📅 选择时间范围</h3>
         <div class="date-range">
-          <div class="date-field" @click="showStartDatePicker = true">
+          <div class="date-field" @click="openStartDatePicker">
             <span class="date-label">开始日期</span>
             <span class="date-value">{{ formatDate(startDate) }}</span>
           </div>
           <span class="date-separator">至</span>
-          <div class="date-field" @click="showEndDatePicker = true">
+          <div class="date-field" @click="openEndDatePicker">
             <span class="date-label">结束日期</span>
             <span class="date-value">{{ formatDate(endDate) }}</span>
           </div>
@@ -126,11 +126,7 @@
               <van-switch v-model="exportOptions.addWatermark" size="20" />
             </template>
           </van-cell>
-          <van-cell title="按日期分文件夹">
-            <template #right-icon>
-              <van-switch v-model="exportOptions.groupByDate" size="20" />
-            </template>
-          </van-cell>
+          <van-cell title="分文件夹方式" :value="groupByLabel" is-link @click="showGroupByPicker = true" />
         </van-cell-group>
       </div>
 
@@ -221,6 +217,16 @@
       />
     </van-popup>
 
+    <!-- 分文件夹方式选择器 -->
+    <van-popup v-model:show="showGroupByPicker" position="bottom">
+      <van-picker
+        title="选择分文件夹方式"
+        :columns="groupByOptions"
+        @confirm="onGroupByConfirm"
+        @cancel="showGroupByPicker = false"
+      />
+    </van-popup>
+
     <!-- 省份选择器 -->
     <van-popup v-model:show="showProvincePicker" position="bottom">
       <van-picker
@@ -273,7 +279,17 @@
           </van-button>
         </div>
         <div v-else-if="exportStatus === 'completed'" class="progress-actions">
-          <van-button size="small" plain type="primary" @click="showProgressDialog = false">
+          <p v-if="downloadError" class="download-hint">{{ downloadError }}</p>
+          <van-button
+            v-if="downloadError"
+            size="small"
+            plain
+            type="primary"
+            @click="triggerDownload(currentExportId)"
+          >
+            重新下载
+          </van-button>
+          <van-button size="small" plain @click="showProgressDialog = false">
             关闭
           </van-button>
         </div>
@@ -296,13 +312,21 @@ import { showToast, showSuccessToast } from 'vant'
 import dayjs from 'dayjs'
 import { getUserStats } from '@/api/user'
 import { getTimelinePhotos } from '@/api/photo'
-import { createExport, getExportStatus, cancelExport } from '@/api/export'
+import { createExport, getExportStatus, cancelExport, downloadExport } from '@/api/export'
 import type { Photo } from '@/types'
 import { provinces } from '@/data/regions'
 
 // 日期范围
-const startDate = ref<string>('')
-const endDate = ref<string>('')
+// 默认导出当天（用户首次进入导出页即可一键导出当日）
+function todayString(): string {
+  const d = new Date()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${day}`
+}
+
+const startDate = ref<string>(todayString())
+const endDate = ref<string>(todayString())
 const showStartDatePicker = ref(false)
 const showEndDatePicker = ref(false)
 const startDatePickerValue = ref<string[]>([])
@@ -344,18 +368,41 @@ const hasMorePhotos = computed(() => timelinePhotos.value.length > DISPLAY_LIMIT
 const availableMonths = ref<string[]>([])
 
 // 导出选项
-const exportOptions = ref({
+const exportOptions = ref<{
+  keepOriginal: boolean
+  includeMetadata: boolean
+  addWatermark: boolean
+  groupBy: 'none' | 'takenDate' | 'createdAt'
+}>({
   keepOriginal: true,
   includeMetadata: true,
   addWatermark: false,
-  groupByDate: true
+  // 分组维度：none-不分组 / takenDate-按拍摄日期 / createdAt-按上传存储时间
+  // 默认按拍摄日期，符合"年/月/日/照片"的目录层级
+  groupBy: 'takenDate'
 })
 
-// 导出格式
+// 分文件夹方式选择
+const groupByOptions = [
+  { text: '按拍摄日期（年/月/日）', value: 'takenDate' },
+  { text: '按上传时间（年/月/日）', value: 'createdAt' },
+  { text: '不分组', value: 'none' }
+]
+const showGroupByPicker = ref(false)
+const groupByLabel = computed(() => {
+  const opt = groupByOptions.find(o => o.value === exportOptions.value.groupBy)
+  return opt ? opt.text : '未选择'
+})
+
+function onGroupByConfirm({ selectedValues }: { selectedValues: { value: 'none' | 'takenDate' | 'createdAt' }[] }) {
+  exportOptions.value.groupBy = selectedValues[0].value
+  showGroupByPicker.value = false
+}
+
+// 导出格式（已下线视频影集）
 const formats = [
   { value: 'zip', name: 'ZIP 压缩包', desc: '保留原图和 EXIF', icon: 'cluster-o' },
-  { value: 'pdf', name: 'PDF 相册', desc: '可打印的相册', icon: 'description-o' },
-  { value: 'video', name: '视频影集', desc: '带配乐的幻灯片', icon: 'play-circle-o' }
+  { value: 'pdf', name: 'PDF 相册', desc: '可打印的相册', icon: 'description-o' }
 ]
 const selectedFormat = ref('zip')
 
@@ -384,6 +431,8 @@ const currentExportId = ref<number | null>(null)
 const cancelling = ref(false)
 const progressInterval = ref<ReturnType<typeof setInterval> | null>(null)
 const pollFailCount = ref(0)
+// 下载失败提示：空字符串表示下载成功或尚未尝试
+const downloadError = ref('')
 
 // 日期边界
 const minDate = new Date(2020, 0, 1)
@@ -393,9 +442,13 @@ const maxDate = new Date()
 const selectedCount = computed(() => timelinePhotos.value.length)
 
 onMounted(() => {
-  // 默认选择最近一个月
-  endDate.value = dayjs().format('YYYY-MM-DD')
-  startDate.value = dayjs().subtract(1, 'month').format('YYYY-MM-DD')
+  // 进入页面时若无有效日期，补成"今天"（todayString 的 ref 初值已是今天，这里避免覆盖用户已设值）
+  if (!startDate.value) {
+    startDate.value = todayString()
+  }
+  if (!endDate.value) {
+    endDate.value = todayString()
+  }
 
   loadUserStats()
   loadTimelinePhotos()
@@ -479,6 +532,27 @@ function onEndDateConfirm({ selectedValues }: { selectedValues: string[] }) {
   showEndDatePicker.value = false
 }
 
+// 打开开始日期 picker 时，把日历默认定位到当日
+function openStartDatePicker() {
+  startDatePickerValue.value = startDate.value
+    ? startDate.value.split('-')
+    : todayParts()
+  showStartDatePicker.value = true
+}
+
+// 打开结束日期 picker 时，把日历默认定位到当日
+function openEndDatePicker() {
+  endDatePickerValue.value = endDate.value
+    ? endDate.value.split('-')
+    : todayParts()
+  showEndDatePicker.value = true
+}
+
+function todayParts(): string[] {
+  const d = new Date()
+  return [String(d.getFullYear()), String(d.getMonth() + 1), String(d.getDate())]
+}
+
 function onPhotosPerPageConfirm({ selectedValues }: { selectedValues: { value: number }[] }) {
   pdfOptions.value.photosPerPage = selectedValues[0].value
   showPhotosPerPagePicker.value = false
@@ -508,12 +582,14 @@ async function startExport() {
   exportProgress.value = 0
   exportStatus.value = 'pending'
   progressText.value = '准备中...'
+  downloadError.value = ''
 
   try {
     const result = await createExport({
       startDate: startDate.value,
       endDate: endDate.value,
-      format: selectedFormat.value as 'zip' | 'pdf' | 'video',
+      format: selectedFormat.value as 'zip' | 'pdf',
+      groupBy: exportOptions.value.groupBy,
       options: {
         ...exportOptions.value,
         ...(selectedFormat.value === 'pdf' ? pdfOptions.value : {})
@@ -551,9 +627,11 @@ function pollExportStatus() {
       if (backendStatus === 'completed') {
         exportStatus.value = 'completed'
         exportProgress.value = 100
-        progressText.value = '导出完成！'
+        progressText.value = '导出完成！正在准备下载...'
         clearProgressInterval()
         exporting.value = false
+        // 自动触发下载
+        triggerDownload(currentExportId.value)
       } else if (backendStatus === 'failed') {
         exportStatus.value = 'failed'
         progressText.value = '导出失败'
@@ -618,13 +696,67 @@ function handleCloseDialog() {
   currentExportId.value = null
 }
 
-function handleRetryExport() {
+async function handleRetryExport() {
   showProgressDialog.value = false
   exporting.value = false
   exportProgress.value = 0
   exportStatus.value = 'pending'
   currentExportId.value = null
   setTimeout(() => startExport(), 300)
+}
+
+async function triggerDownload(id: number | null) {
+  if (!id) return
+  // 重置错误提示，避免上次失败的状态影响本轮
+  downloadError.value = ''
+  try {
+    showToast({ message: '开始下载...', duration: 1500 })
+    const blob = await downloadExport(id)
+    if (!blob || blob.size === 0) {
+      downloadError.value = '下载内容为空，请点击重新下载'
+      return
+    }
+
+    const ext = selectedFormat.value === 'pdf' ? 'pdf' : 'zip'
+    const filename = `loveofus_${ext}_${dayjs().format('YYYYMMDDHHmmss')}.${ext}`
+
+    // 微信内置浏览器无下载能力，提示外部打开
+    if (typeof (window as any).WeixinJSBridge !== 'undefined') {
+      downloadError.value = '请点击右上角，选择"在浏览器中打开"'
+      return
+    }
+
+    const url = URL.createObjectURL(blob)
+
+    // iOS Safari：直接跳转 blob URL 才能触发系统下载面板；
+    // 新版本 Safari 支持 <a download> 但需要在同一调用栈内点击。
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream
+
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.style.display = 'none'
+
+    if (isIOS) {
+      // iOS 必须在当前调用栈 click，且用 target=_self 避免新窗口拦截
+      a.target = '_self'
+    }
+    document.body.appendChild(a)
+    a.click()
+
+    // iOS Safari 必须延迟移除，否则下载会被中断
+    setTimeout(() => {
+      if (a.parentNode) document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    }, isIOS ? 1000 : 200)
+
+    // 成功：关闭对话框，避免误重复触发下载
+    showSuccessToast('下载已开始，请查看下载文件夹')
+    showProgressDialog.value = false
+  } catch (error: any) {
+    console.error('下载失败:', error)
+    downloadError.value = error?.message || '下载失败，请点击重新下载'
+  }
 }
 </script>
 
@@ -940,6 +1072,13 @@ function handleRetryExport() {
     display: flex;
     gap: 12px;
     justify-content: center;
+  }
+
+  .download-hint {
+    margin: 8px 0 0;
+    font-size: 12px;
+    color: #ee0a24;
+    text-align: center;
   }
 }
 
