@@ -140,6 +140,12 @@ export const useUserStore = defineStore('user', () => {
   }
 
   function logout() {
+    // 派发登出前事件：让持有长连接（如 WebSocket）的组件主动关闭，避免服务端"仍显示在线"
+    try {
+      window.dispatchEvent(new CustomEvent('lovemap:before-logout'))
+    } catch {
+      // 派发失败不影响主流程
+    }
     token.value = null
     refreshToken.value = null
     tokenExpireAt.value = null

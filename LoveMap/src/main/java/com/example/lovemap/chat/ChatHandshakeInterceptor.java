@@ -38,13 +38,26 @@ public class ChatHandshakeInterceptor implements HandshakeInterceptor {
                                    ServerHttpResponse response,
                                    WebSocketHandler wsHandler,
                                    Map<String, Object> attributes) {
-        Integer userId = extractUserId(request);
-        if (userId == null) {
+        String token = extractToken(request);
+        if (token == null) {
             log.warn("聊天 WebSocket 握手失败：未通过 Token 鉴权, remote: {}", request.getRemoteAddress());
             response.setStatusCode(org.springframework.http.HttpStatus.UNAUTHORIZED);
             return false;
         }
+        if (!tokenUtils.validateToken(token)) {
+            log.warn("聊天 WebSocket 握手失败：Token 不合法, remote: {}", request.getRemoteAddress());
+            response.setStatusCode(org.springframework.http.HttpStatus.UNAUTHORIZED);
+            return false;
+        }
+        // 校验 Token 是否在黑名单（已被登出/注销的 Token 不可用于建立新 WS）
+        if (tokenUtils.isTokenBlacklisted(token)) {
+            log.warn("聊天 WebSocket 握手拒绝：Token 已加入黑名单, remote: {}", request.getRemoteAddress());
+            response.setStatusCode(org.springframework.http.HttpStatus.UNAUTHORIZED);
+            return false;
+        }
+        Integer userId = tokenUtils.getUserId(token);
         attributes.put(ATTR_USER_ID, userId);
+        attributes.put(ATTR_TOKEN, token);
         log.info("聊天 WebSocket 握手成功, userId: {}, remote: {}", userId, request.getRemoteAddress());
         return true;
     }
@@ -57,7 +70,7 @@ public class ChatHandshakeInterceptor implements HandshakeInterceptor {
         // no-op
     }
 
-    private Integer extractUserId(ServerHttpRequest request) {
+    private String extractToken(ServerHttpRequest request) {
         String token = null;
 
         // 1. Authorization 头
@@ -87,9 +100,6 @@ public class ChatHandshakeInterceptor implements HandshakeInterceptor {
         if (token == null || token.isEmpty()) {
             return null;
         }
-        if (!tokenUtils.validateToken(token)) {
-            return null;
-        }
-        return tokenUtils.getUserId(token);
+        return token;
     }
 }

@@ -1,5 +1,7 @@
 package com.example.lovemap.service.serviceImpl;
 
+import com.example.lovemap.chat.ChatPresenceRegistry;
+import com.example.lovemap.chat.ChatSessionRegistry;
 import com.example.lovemap.common.Result;
 import com.example.lovemap.common.ResultCode;
 import com.example.lovemap.common.constant.CaptchaConstant;
@@ -34,6 +36,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.web.socket.CloseStatus;
+import org.springframework.web.socket.WebSocketSession;
+
+import java.io.IOException;
+import java.util.Collection;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -57,6 +64,8 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtils jwtUtils;
     private final TokenUtils tokenUtils;
+    private final ChatSessionRegistry chatSessionRegistry;
+    private final ChatPresenceRegistry chatPresenceRegistry;
 
     /**
      * 验证码过期时间（秒），从配置文件注入
@@ -375,6 +384,31 @@ public class AuthServiceImpl implements AuthService {
                     TimeUnit.MILLISECONDS
             );
             log.info("退出登录 - Token已加入黑名单, userId:{}, remainingTime:{}ms", userId, remainingTime);
+        }
+
+        // 5. 主动关闭该用户的所有 WebSocket 会话，避免“退出后仍显示在线”
+        //    即使用户直接关闭浏览器/网络断网，服务端也能立即清理在线注册表
+        try {
+            Collection<WebSocketSession> wsSessions = chatSessionRegistry.getSessions(userId);
+            int closed = 0;
+            for (WebSocketSession s : wsSessions) {
+                try {
+                    if (s.isOpen()) {
+                        s.close(CloseStatus.NORMAL.withReason("logout"));
+                        closed++;
+                    }
+                } catch (IOException e) {
+                    log.warn("退出登录关闭 WS 失败, userId:{}, sessionId:{}", userId, s.getId(), e);
+                }
+            }
+            // 同步清理聊天页在线状态（已建立过聊天页心跳的）
+            chatPresenceRegistry.leave(userId);
+            if (closed > 0) {
+                log.info("退出登录 - 已关闭 WebSocket, userId:{}, count:{}", userId, closed);
+            }
+        } catch (Exception e) {
+            // WS 清理失败不影响登出主流程
+            log.warn("退出登录清理 WS 异常, userId:{}", userId, e);
         }
 
         return Result.success("退出登录成功", null);

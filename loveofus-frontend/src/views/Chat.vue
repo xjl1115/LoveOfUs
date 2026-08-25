@@ -669,7 +669,29 @@ onBeforeUnmount(() => {
     sseChatReadHandler = null
   }
   leaveChatPage().catch(() => {})
+  // 注销登出事件监听，避免内存泄漏
+  window.removeEventListener('lovemap:before-logout', onBeforeLogout as EventListener)
 })
+
+// 监听全局登出事件：登出前主动关闭 WS、清理心跳，避免服务端"仍显示在线"
+function onBeforeLogout() {
+  try {
+    if (presenceHeartbeatTimer) {
+      clearInterval(presenceHeartbeatTimer)
+      presenceHeartbeatTimer = null
+    }
+    // 主动调用离开聊天页 + 关闭 WS
+    leaveChatPage().catch(() => {})
+    disconnect()
+  } catch {
+    // 静默吞错，登出主流程不受影响
+  }
+}
+
+// 注册一次全局登出事件监听（onBeforeUnmount 会清理）
+if (typeof window !== 'undefined') {
+  window.addEventListener('lovemap:before-logout', onBeforeLogout as EventListener)
+}
 </script>
 
 <template>

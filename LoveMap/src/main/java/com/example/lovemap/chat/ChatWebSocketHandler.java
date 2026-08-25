@@ -6,6 +6,7 @@ import com.example.lovemap.mapper.UserMapper;
 import com.example.lovemap.model.entity.ChatMessage;
 import com.example.lovemap.model.entity.User;
 import com.example.lovemap.service.SseService;
+import com.example.lovemap.utils.TokenUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,6 +40,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     private final UserMapper userMapper;
     private final ChatPresenceRegistry chatPresenceRegistry;
     private final SseService sseService;
+    private final TokenUtils tokenUtils;
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @Override
@@ -48,6 +50,16 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             log.warn("聊天 WS 连接建立但未携带 userId，强制关闭");
             try {
                 session.close(CloseStatus.POLICY_VIOLATION);
+            } catch (Exception ignored) {
+            }
+            return;
+        }
+        // 即时校验 Token 是否在黑名单（处理"用户登出后 WS 已建立"的边界场景）
+        String token = (String) session.getAttributes().get(ChatHandshakeInterceptor.ATTR_TOKEN);
+        if (token != null && tokenUtils.isTokenBlacklisted(token)) {
+            log.warn("聊天 WS 连接建立后检测到 Token 黑名单，强制关闭, userId: {}", userId);
+            try {
+                session.close(CloseStatus.POLICY_VIOLATION.withReason("token_blacklisted"));
             } catch (Exception ignored) {
             }
             return;
@@ -68,6 +80,17 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         Integer userId = (Integer) session.getAttributes().get(ChatHandshakeInterceptor.ATTR_USER_ID);
         if (userId == null) {
             session.close(CloseStatus.POLICY_VIOLATION);
+            return;
+        }
+
+        // 防御性：每次收到消息都校验一次 Token 黑名单（用户可能在连接建立后才退出登录）
+        String token = (String) session.getAttributes().get(ChatHandshakeInterceptor.ATTR_TOKEN);
+        if (token != null && tokenUtils.isTokenBlacklisted(token)) {
+            log.warn("聊天 WS 检测到 Token 已登出，关闭连接, userId: {}", userId);
+            try {
+                session.close(CloseStatus.POLICY_VIOLATION.withReason("token_blacklisted"));
+            } catch (Exception ignored) {
+            }
             return;
         }
 
