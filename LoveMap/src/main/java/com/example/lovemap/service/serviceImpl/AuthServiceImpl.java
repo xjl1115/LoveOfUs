@@ -250,6 +250,7 @@ public class AuthServiceImpl implements AuthService {
 
         // 8. 返回注册结果
         LoginResultVO.UserInfoVO userInfo = new LoginResultVO.UserInfoVO();
+        userInfo.setId(user.getId());
         userInfo.setNickname(nickname);
         userInfo.setAvatarUrl(null);
         userInfo.setIsBound(bound);
@@ -862,6 +863,7 @@ public class AuthServiceImpl implements AuthService {
      */
     private LoginResultVO getLoginResultVO(User user, String token, String refreshToken) {
         LoginResultVO.UserInfoVO userInfo = new LoginResultVO.UserInfoVO();
+        userInfo.setId(user.getId());
         userInfo.setNickname(user.getNickname());
         userInfo.setAvatarUrl(user.getAvatarUrl());
         userInfo.setIsBound(user.getIsBound() != null && user.getIsBound() == 1);

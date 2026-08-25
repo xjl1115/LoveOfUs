@@ -42,6 +42,7 @@ export interface LoginResult {
   refreshToken?: string
   expiresIn: number
   userInfo: {
+    id: number
     nickname: string
     avatarUrl: string | null
     isBound: boolean

@@ -32,8 +32,8 @@ const connected = ref(false)
 const peerTyping = ref(false)
 const messagesEndRef = ref<HTMLDivElement | null>(null)
 
-// 当前登录用户 ID
-const currentUserId = computed(() => userStore.userInfo?.id ?? 0)
+// 当前登录用户 ID（兼容 id / userId 字段，登录返回的 UserInfoVO 使用 id）
+const currentUserId = computed(() => userStore.userInfo?.id ?? (userStore.userInfo as any)?.userId ?? 0)
 
 // 在线状态：登录中即视为在线（只要 token 有效就显示在线）
 const isOnline = computed(() => !!userStore.token)

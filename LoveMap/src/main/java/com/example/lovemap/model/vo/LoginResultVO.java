@@ -39,6 +39,11 @@ public class LoginResultVO {
     @Data
     public static class UserInfoVO {
         /**
+         * 用户ID
+         */
+        private Long id;
+
+        /**
          * 昵称
          */
         private String nickname;
