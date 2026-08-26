@@ -12,7 +12,7 @@
   >
     <van-badge :content="unreadCount > 0 ? unreadCount : ''" :max="99">
       <div class="btn-icon">
-        <span class="emoji">💌</span>
+        <span class="ai-label">AI</span>
       </div>
     </van-badge>
 
@@ -197,8 +197,8 @@ defineExpose({ bumpUnread, markRead })
   width: 50px;
   height: 50px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #b167ff 0%, #ff7eb3 100%);
-  box-shadow: 0 4px 14px rgba(177, 103, 255, 0.45);
+  background: linear-gradient(135deg, #6c8cff 0%, #8a5cff 100%);
+  box-shadow: 0 4px 14px rgba(108, 140, 255, 0.45);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -218,9 +218,13 @@ defineExpose({ bumpUnread, markRead })
     justify-content: center;
   }
 
-  .emoji {
-    font-size: 24px;
-    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2));
+  .ai-label {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    line-height: 1;
+    font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
   }
 
   :deep(.van-badge__content) {
