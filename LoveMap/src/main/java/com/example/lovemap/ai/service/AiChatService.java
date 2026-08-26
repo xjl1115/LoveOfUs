@@ -4,7 +4,9 @@ import com.example.lovemap.ai.context.AiUserContext;
 import com.example.lovemap.ai.dto.ChatRequest;
 import com.example.lovemap.ai.dto.ChatResponse;
 import com.example.lovemap.ai.exception.AiDisabledException;
+import com.example.lovemap.ai.service.AiSessionService;
 import com.example.lovemap.ai.tool.SimpleToolExecutor;
+import com.example.lovemap.ai.vo.AiMessageVO;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.agent.tool.ToolSpecification;
@@ -50,6 +52,7 @@ public class AiChatService {
     private final ObjectProvider<List<ToolSpecification>> toolSpecificationsProvider;
     private final ObjectProvider<Map<String, Object>> toolBeanMapProvider;
     private final ObjectProvider<ObjectMapper> objectMapperProvider;
+    private final AiSessionService aiSessionService;
     private final String systemPrompt;
 
     /** Tool loop 最多迭代次数（防止模型进入死循环） */
@@ -60,12 +63,14 @@ public class AiChatService {
                           ObjectProvider<List<ToolSpecification>> toolSpecificationsProvider,
                           ObjectProvider<Map<String, Object>> toolBeanMapProvider,
                           ObjectProvider<ObjectMapper> objectMapperProvider,
+                          AiSessionService aiSessionService,
                           @Value("${ai.dashscope.system-prompt:}") String systemPrompt) {
         this.chatModelProvider = chatModelProvider;
         this.streamingChatModelProvider = streamingChatModelProvider;
         this.toolSpecificationsProvider = toolSpecificationsProvider;
         this.toolBeanMapProvider = toolBeanMapProvider;
         this.objectMapperProvider = objectMapperProvider;
+        this.aiSessionService = aiSessionService;
         this.systemPrompt = systemPrompt == null ? "" : systemPrompt;
     }
 
@@ -74,12 +79,22 @@ public class AiChatService {
     public ChatResponse chat(ChatRequest request) {
         String userText = safeText(request.getMessage());
         ChatModel chatModel = requireChatModel();
+        Long userId = AiUserContext.peekUserId();
         log.info("AI chat (non-stream) session={}, text-len={}, systemPrompt={}",
                 request.getSessionId(), userText.length(),
                 systemPrompt.isBlank() ? "<none>" : "<configured>");
 
         try {
+            // 先把 user 消息落库
+            persistMessage(userId, request.getSessionId(), "user", userText, null);
+
             String aiText = chatWithTools(chatModel, userText);
+            // 落 AI 消息
+            persistMessage(userId, request.getSessionId(), "ai", aiText, null);
+
+            // 自动生成标题（首次有消息且标题是默认"新会话"）
+            autoGenerateTitle(userId, request.getSessionId(), userText);
+
             return ChatResponse.builder()
                     .sessionId(request.getSessionId())
                     .message(ChatResponse.ChatMessage.builder()
@@ -108,8 +123,12 @@ public class AiChatService {
             return;
         }
         String userText = safeText(request.getMessage());
+        Long userId = AiUserContext.peekUserId();
         log.info("AI chat (stream) session={}, text-len={}",
                 request.getSessionId(), userText.length());
+
+        // 先把 user 消息落库
+        persistMessage(userId, request.getSessionId(), "user", userText, null);
 
         List<ToolSpecification> toolSpecs = toolSpecificationsProvider.getIfAvailable();
         Map<String, Object> toolBeanMap = toolBeanMapProvider.getIfAvailable();
@@ -129,6 +148,7 @@ public class AiChatService {
                 .build();
 
         streamWithTools(streamingChatModel, messages, params, executor,
+                userId, request.getSessionId(), userText,
                 onChunk, onComplete, onError, 0);
     }
 
@@ -144,6 +164,9 @@ public class AiChatService {
                                   List<ChatMessage> messages,
                                   ChatRequestParameters params,
                                   SimpleToolExecutor executor,
+                                  Long userId,
+                                  String sessionId,
+                                  String userText,
                                   Consumer<String> onChunk,
                                   Consumer<String> onComplete,
                                   Consumer<Throwable> onError,
@@ -190,9 +213,14 @@ public class AiChatService {
                     // 注意：这里 chatRequest 里不再附带 toolSpecs 即可让模型直接输出文本
                     // 但为通用起见仍然带
                     streamWithTools(model, messages, params, executor,
+                            userId, sessionId, userText,
                             onChunk, onComplete, onError, iteration + 1);
                 } else {
-                    try { onComplete.accept(fullText.toString()); }
+                    String finalText = fullText.toString();
+                    // 流式结束后落 AI 消息 + 自动标题
+                    persistMessage(userId, sessionId, "ai", finalText, null);
+                    autoGenerateTitle(userId, sessionId, userText);
+                    try { onComplete.accept(finalText); }
                     catch (Exception e) { log.warn("onComplete err", e); }
                 }
             }
@@ -291,5 +319,48 @@ public class AiChatService {
 
     private ObjectMapper mapperOrFallback(SimpleToolExecutor executor, ToolExecutionRequest ter, Object result) {
         return objectMapperProvider.getIfAvailable();
+    }
+
+    // ==================== 会话持久化 ====================
+
+    private void persistMessage(Long userId, String sessionId, String role, String content, String toolName) {
+        if (userId == null || sessionId == null || sessionId.isBlank()) return;
+        try {
+            AiMessageVO vo = new AiMessageVO();
+            vo.setRole(role);
+            vo.setContent(content == null ? "" : content);
+            vo.setToolName(toolName);
+            vo.setCreatedAt(java.time.LocalDateTime.now());
+            aiSessionService.appendMessage(userId.intValue(), sessionId, vo);
+        } catch (Exception e) {
+            log.warn("[AI] 消息持久化失败 session={}, role={}", sessionId, role, e);
+        }
+    }
+
+    /**
+     * 自动生成会话标题：仅当 title 仍为 "新会话" 时替换为用户首条问题（截断到 24 字）。
+     * <p>
+     * 留作未来 LLM 自动总结的扩展点；目前采用简单截断方案，避免额外 LLM 开销。
+     */
+    private void autoGenerateTitle(Long userId, String sessionId, String firstUserText) {
+        if (userId == null || firstUserText == null) return;
+        try {
+            var summary = aiSessionService.listSessions(userId.intValue());
+            var data = summary == null ? null : summary.getData();
+            if (data == null) return;
+            var hit = data.stream().filter(v -> sessionId.equals(v.getSessionId())).findFirst();
+            if (hit.isEmpty()) return;
+            String title = hit.get().getTitle();
+            if (title != null && ! title.equals("新会话")) return; // 已被用户重命名或已生成过
+
+            String newTitle = firstUserText.trim();
+            if (newTitle.length() > 24) newTitle = newTitle.substring(0, 24) + "…";
+            if (newTitle.isBlank()) newTitle = "新会话";
+            var renameReq = new com.example.lovemap.ai.dto.AiRenameRequest();
+            renameReq.setTitle(newTitle);
+            aiSessionService.renameSession(userId.intValue(), sessionId, renameReq);
+        } catch (Exception e) {
+            log.warn("[AI] 自动生成标题失败", e);
+        }
     }
 }

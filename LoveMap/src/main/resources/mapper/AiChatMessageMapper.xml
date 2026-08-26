@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.lovemap.mapper.AiChatMessageMapper">
+
+    <resultMap id="messageMap" type="com.example.lovemap.model.entity.AiChatMessage">
+        <id property="id" column="id"/>
+        <result property="sessionId" column="session_id"/>
+        <result property="userId" column="user_id"/>
+        <result property="msgRole" column="msg_role"/>
+        <result property="msgContent" column="msg_content"/>
+        <result property="toolName" column="tool_name"/>
+        <result property="seq" column="seq"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <resultMap id="messageVOMap" type="com.example.lovemap.ai.vo.AiMessageVO">
+        <result property="id" column="id" javaType="java.lang.String"/>
+        <result property="role" column="msg_role"/>
+        <result property="content" column="msg_content"/>
+        <result property="toolName" column="tool_name"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.example.lovemap.model.entity.AiChatMessage"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_chat_message
+            (session_id, user_id, msg_role, msg_content, tool_name, seq, created_at)
+        VALUES
+            (#{sessionId}, #{userId}, #{msgRole}, #{msgContent}, #{toolName}, #{seq}, #{createdAt})
+    </insert>
+
+    <select id="selectBySession" resultMap="messageVOMap">
+        SELECT id, msg_role, msg_content, tool_name, created_at
+        FROM ai_chat_message
+        WHERE session_id = #{sessionId} AND user_id = #{userId}
+        ORDER BY seq ASC, id ASC
+    </select>
+
+    <delete id="deleteBySession">
+        DELETE FROM ai_chat_message
+        WHERE session_id = #{sessionId} AND user_id = #{userId}
+    </delete>
+
+    <select id="selectMaxSeq" resultType="java.lang.Integer">
+        SELECT COALESCE(MAX(seq), -1) FROM ai_chat_message
+        WHERE session_id = #{sessionId}
+    </select>
+</mapper>

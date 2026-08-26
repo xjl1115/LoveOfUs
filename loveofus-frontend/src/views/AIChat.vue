@@ -9,12 +9,17 @@
       @click-left="onBack"
     >
       <template #right>
-        <van-icon
+        <span class="nav-icon" @click="onOpenHistory" title="历史会话">
+          <van-icon name="clock-o" size="20" />
+        </span>
+        <span
           v-if="messages.length > 1"
-          name="delete-o"
-          size="18"
+          class="nav-icon"
           @click="onClear"
-        />
+          title="清空当前对话"
+        >
+          <van-icon name="delete-o" size="18" />
+        </span>
       </template>
     </van-nav-bar>
 
@@ -72,6 +77,9 @@
         发送
       </van-button>
     </div>
+
+    <!-- 占位元素：与输入区等高，确保消息列表滚动到底时不被输入框遮挡 -->
+    <div class="input-bar-placeholder" aria-hidden="true" />
   </div>
 </template>
 
@@ -89,6 +97,7 @@ import {
   clearHistory,
   chatStream,
   chatOnce,
+  getAiSessionDetail,
   type ChatMessage
 } from '@/api/aiChat'
 
@@ -142,7 +151,35 @@ function shouldShowTime(idx: number): boolean {
 
 // ==================== 生命周期 ====================
 
-onMounted(() => {
+onMounted(async () => {
+  // 优先：从历史列表选中跳转过来 -> 拉后端详情
+  const loadFromHistory = localStorage.getItem('ai_chat_load_from_history') === '1'
+  if (loadFromHistory) {
+    localStorage.removeItem('ai_chat_load_from_history')
+    const sid = getSessionId()
+    if (sid) {
+      try {
+        const detail = await getAiSessionDetail(sid)
+        if (detail && Array.isArray(detail.messages) && detail.messages.length > 0) {
+          messages.value = detail.messages.map((m) => ({
+            id: String(m.id ?? Math.random().toString(36).slice(2)),
+            role: m.role,
+            content: m.content,
+            toolName: m.toolName,
+            createdAt: m.createdAt
+              ? new Date(m.createdAt.replace(' ', 'T')).getTime()
+              : Date.now()
+          }))
+          scrollToBottom()
+          return
+        }
+      } catch (e) {
+        console.warn('[AIChat] 加载历史详情失败', e)
+      }
+    }
+  }
+
+  // 普通启动：读 localStorage
   const cached = loadHistory()
   if (cached.length > 0) {
     messages.value = cached
@@ -208,6 +245,12 @@ function onClear() {
     })
 }
 
+function onOpenHistory() {
+  cancelStream?.()
+  saveHistory(messages.value)
+  router.push('/ai-history')
+}
+
 function onPickQuestion(item: QuickQuestion) {
   inputText.value = item.text
   onSend()
@@ -246,12 +289,18 @@ async function onSend() {
 
   cancelStream = chatStream(
     { sessionId, message: text },
+    {
+      // 长思考/长输出场景允许拉长 SSE 等待；服务端 SseEmitter 30 分钟
+      timeoutMs: 30 * 60 * 1000
+    },
     (chunk) => {
       // 仅第一次成功回调时，标记 sseOk（后续 chunk 不断追加）
       if (!sseOk) sseOk = true
-      aiMsg.content += chunk
-      // 触发响应式更新（ref 数组内对象需要替换引用）
-      messages.value = [...messages.value]
+      // 直接替换 aiMsg 对象引用，强制触发 Vue 响应式更新（比 [...messages.value] 更轻量）
+      const idx = messages.value.findIndex((m) => m.id === aiMsg.id)
+      if (idx >= 0) {
+        messages.value[idx] = { ...messages.value[idx], content: messages.value[idx].content + chunk }
+      }
       scrollToBottom()
     },
     (toolName, summary) => {
@@ -266,8 +315,10 @@ async function onSend() {
       scrollToBottom()
     },
     () => {
-      aiMsg.streaming = false
-      messages.value = [...messages.value]
+      const idx = messages.value.findIndex((m) => m.id === aiMsg.id)
+      if (idx >= 0) {
+        messages.value[idx] = { ...messages.value[idx], streaming: false }
+      }
       loading.value = false
       cancelStream = null
       saveHistory(messages.value)
@@ -277,25 +328,37 @@ async function onSend() {
       if (!sseOk) {
         try {
           const resp = await chatOnce({ sessionId, message: text })
-          aiMsg.content = resp.message.content
-          aiMsg.streaming = false
-          aiMsg.error = false
+          const idx = messages.value.findIndex((m) => m.id === aiMsg.id)
+          if (idx >= 0) {
+            messages.value[idx] = {
+              ...messages.value[idx],
+              content: resp.message.content,
+              streaming: false,
+              error: false
+            }
+          }
         } catch (e) {
-          aiMsg.content = '抱歉，AI 助手暂时离开，请稍后再试～'
-          aiMsg.error = true
-          aiMsg.streaming = false
+          const idx = messages.value.findIndex((m) => m.id === aiMsg.id)
+          if (idx >= 0) {
+            messages.value[idx] = {
+              ...messages.value[idx],
+              content: '抱歉，AI 助手暂时离开，请稍后再试～',
+              streaming: false,
+              error: true
+            }
+          }
           // 仅在网络/服务类错误时显示禁用提示（避免每次失败都关）
           console.warn('[AIChat] fallback failed', e)
         }
-        messages.value = [...messages.value]
         loading.value = false
         cancelStream = null
         saveHistory(messages.value)
       } else {
         // 中途断流（已经有部分内容）
-        aiMsg.streaming = false
-        aiMsg.error = true
-        messages.value = [...messages.value]
+        const idx = messages.value.findIndex((m) => m.id === aiMsg.id)
+        if (idx >= 0) {
+          messages.value[idx] = { ...messages.value[idx], streaming: false, error: true }
+        }
         loading.value = false
         cancelStream = null
         showToast(err.message || '连接中断')
@@ -330,6 +393,7 @@ async function onSend() {
   flex: 1;
   overflow-y: auto;
   padding: 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
   -webkit-overflow-scrolling: touch;
 }
 
@@ -344,10 +408,16 @@ async function onSend() {
 }
 
 .input-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
   display: flex;
   align-items: flex-end;
   gap: 8px;
   padding: 8px 12px;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom));
   background: #fff;
   border-top: 1px solid $border-color;
   box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.04);
@@ -366,5 +436,21 @@ async function onSend() {
     height: 36px;
     padding: 0 16px;
   }
+}
+
+// 与 fixed 定位的 .input-bar 等高，避免消息被遮挡
+.input-bar-placeholder {
+  flex-shrink: 0;
+  // 输入区最小高度约 52px（8 上下 padding + 36 按钮高度），再加安全区
+  min-height: calc(52px + env(safe-area-inset-bottom));
+}
+
+.nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  cursor: pointer;
+  color: inherit;
 }
 </style>

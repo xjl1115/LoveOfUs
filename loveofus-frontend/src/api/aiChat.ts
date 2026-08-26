@@ -103,6 +103,55 @@ export function clearHistory(): void {
   localStorage.removeItem(HISTORY_KEY)
 }
 
+// ==================== 会话管理 API ====================
+
+/** 会话摘要（列表项） */
+export interface AiSessionSummary {
+  sessionId: string
+  title: string
+  messageCount: number
+  pinned: number
+  lastActiveAt: string
+  createdAt: string
+}
+
+/** 会话消息（详情项） */
+export interface AiSessionMessage {
+  id: number | string
+  role: ChatRole
+  content: string
+  toolName?: string
+  createdAt: string
+}
+
+/** 会话详情（含消息列表） */
+export interface AiSessionDetail {
+  sessionId: string
+  title: string
+  pinned: number
+  messages: AiSessionMessage[]
+}
+
+/** 列出当前用户的全部会话 */
+export async function listAiSessions(): Promise<AiSessionSummary[]> {
+  return request.get<AiSessionSummary[]>('/ai/sessions')
+}
+
+/** 获取会话详情（消息列表） */
+export async function getAiSessionDetail(sessionId: string): Promise<AiSessionDetail> {
+  return request.get<AiSessionDetail>(`/ai/sessions/${encodeURIComponent(sessionId)}`)
+}
+
+/** 重命名会话 */
+export async function renameAiSession(sessionId: string, title: string): Promise<AiSessionSummary> {
+  return request.put<AiSessionSummary>(`/ai/sessions/${encodeURIComponent(sessionId)}/title`, { title })
+}
+
+/** 删除会话 */
+export async function deleteAiSession(sessionId: string): Promise<void> {
+  await request.delete(`/ai/sessions/${encodeURIComponent(sessionId)}`)
+}
+
 // ==================== 后端调用 ====================
 
 /**
@@ -113,9 +162,16 @@ export async function chatOnce(req: ChatRequest): Promise<ChatResponse> {
   return request.post<ChatResponse>('/ai/chat', req)
 }
 
+/** 流式调用可选参数 */
+export interface ChatStreamOptions {
+  /** SSE 连接最长等待时间（毫秒）。LLM 思考+长输出可拉长，默认 60s 太短 */
+  timeoutMs?: number
+}
+
 /**
  * 流式调用（SSE）
  * @param req 请求体
+ * @param opts 可选参数（timeoutMs 等）
  * @param onChunk  每收到一段正文回调（仅增量文本）
  * @param onTool   工具调用事件（可为空）
  * @param onDone   全部完成回调
@@ -124,6 +180,7 @@ export async function chatOnce(req: ChatRequest): Promise<ChatResponse> {
  */
 export function chatStream(
   req: ChatRequest,
+  opts: ChatStreamOptions | null,
   onChunk: (text: string) => void,
   onTool: ((toolName: string, summary?: string) => void) | null,
   onDone: () => void,
@@ -136,6 +193,7 @@ export function chatStream(
     url: '/ai/chat/stream',
     body: req,
     headers: token ? { Authorization: `Bearer ${token}` } : {},
+    timeoutMs: opts?.timeoutMs,
     onEvent: (event) => {
       // 约定后端推送的事件类型：
       // - "chunk"  data: { text: string }

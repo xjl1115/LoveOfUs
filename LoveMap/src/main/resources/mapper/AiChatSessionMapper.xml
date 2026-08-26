@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.lovemap.mapper.AiChatSessionMapper">
+
+    <resultMap id="sessionMap" type="com.example.lovemap.model.entity.AiChatSession">
+        <id property="id" column="id"/>
+        <result property="sessionId" column="session_id"/>
+        <result property="userId" column="user_id"/>
+        <result property="title" column="title"/>
+        <result property="pinned" column="pinned"/>
+        <result property="messageCount" column="message_count"/>
+        <result property="lastActiveAt" column="last_active_at"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="isDeleted" column="is_deleted"/>
+    </resultMap>
+
+    <resultMap id="summaryVOMap" type="com.example.lovemap.ai.vo.AiSessionSummaryVO">
+        <result property="sessionId" column="session_id"/>
+        <result property="title" column="title"/>
+        <result property="messageCount" column="message_count"/>
+        <result property="pinned" column="pinned"/>
+        <result property="lastActiveAt" column="last_active_at"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <insert id="insertIgnore" parameterType="com.example.lovemap.model.entity.AiChatSession">
+        INSERT IGNORE INTO ai_chat_session
+            (session_id, user_id, title, pinned, message_count,
+             last_active_at, created_at, updated_at, is_deleted)
+        VALUES
+            (#{sessionId}, #{userId}, #{title}, #{pinned}, #{messageCount},
+             #{lastActiveAt}, #{createdAt}, #{updatedAt}, #{isDeleted})
+    </insert>
+
+    <select id="selectBySessionId" resultMap="sessionMap">
+        SELECT * FROM ai_chat_session
+        WHERE session_id = #{sessionId} AND user_id = #{userId} AND is_deleted = 0
+        LIMIT 1
+    </select>
+
+    <select id="selectSummaryByUser" resultMap="summaryVOMap">
+        SELECT session_id, title, message_count, pinned, last_active_at, created_at
+        FROM ai_chat_session
+        WHERE user_id = #{userId} AND is_deleted = 0
+        ORDER BY pinned DESC, last_active_at DESC
+        LIMIT 100
+    </select>
+
+    <update id="updateTitle">
+        UPDATE ai_chat_session
+        SET title = #{title}, updated_at = #{updatedAt}
+        WHERE session_id = #{sessionId} AND user_id = #{userId} AND is_deleted = 0
+    </update>
+
+    <update id="touch">
+        UPDATE ai_chat_session
+        SET last_active_at = #{lastActiveAt},
+            message_count = message_count + 1,
+            updated_at = #{lastActiveAt}
+        WHERE session_id = #{sessionId} AND user_id = #{userId} AND is_deleted = 0
+    </update>
+
+    <update id="updateMessageCount">
+        UPDATE ai_chat_session
+        SET message_count = message_count + #{delta},
+            updated_at = NOW()
+        WHERE session_id = #{sessionId} AND user_id = #{userId} AND is_deleted = 0
+    </update>
+
+    <update id="softDelete">
+        UPDATE ai_chat_session
+        SET is_deleted = 1, updated_at = NOW()
+        WHERE session_id = #{sessionId} AND user_id = #{userId} AND is_deleted = 0
+    </update>
+
+    <!-- 级联删除（先删消息，再软删会话）由 Service 层分两步调用；此 SQL 仅软删会话 -->
+    <select id="selectListByUser" resultMap="sessionMap">
+        SELECT * FROM ai_chat_session
+        WHERE user_id = #{userId} AND is_deleted = 0
+        ORDER BY pinned DESC, last_active_at DESC
+        LIMIT 100
+    </select>
+</mapper>

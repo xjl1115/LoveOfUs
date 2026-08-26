@@ -69,9 +69,15 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
-    path: '/chat',
-    name: 'Chat',
-    component: () => import('@/views/Chat.vue'),
+    path: '/ai-history',
+    name: 'AIHistory',
+    component: () => import('@/views/AIHistory.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/ai-history/:sessionId',
+    name: 'AIHistoryDetail',
+    component: () => import('@/views/AIHistoryDetail.vue'),
     meta: { requiresAuth: true }
   }
 ]
