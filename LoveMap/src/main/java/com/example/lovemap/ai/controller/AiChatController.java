@@ -1,15 +1,16 @@
 package com.example.lovemap.ai.controller;
 
+import com.example.lovemap.ai.context.AiUserContext;
 import com.example.lovemap.ai.dto.ChatRequest;
 import com.example.lovemap.ai.dto.ChatResponse;
 import com.example.lovemap.ai.service.AiChatService;
 import com.example.lovemap.common.Result;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -48,7 +49,8 @@ public class AiChatController {
      */
     @PostMapping("/chat")
     @Operation(summary = "AI 聊天（非流式）")
-    public Result<ChatResponse> chat(@RequestBody ChatRequest request) {
+    public Result<ChatResponse> chat(@RequestBody ChatRequest request, HttpServletRequest httpReq) {
+        bindContext(httpReq);
         return Result.success(aiChatService.chat(request));
     }
 
@@ -59,50 +61,63 @@ public class AiChatController {
      */
     @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @Operation(summary = "AI 聊天（流式）")
-    public SseEmitter chatStream(@RequestBody ChatRequest request) {
-        // 超时：30 分钟（与现有 SSE 配置一致）
+    public SseEmitter chatStream(@RequestBody ChatRequest request, HttpServletRequest httpReq) {
+        bindContext(httpReq);
+
         SseEmitter emitter = new SseEmitter(30 * 60 * 1000L);
 
-        // 异步回调，避免阻塞 controller 线程
         aiChatService.chatStream(
                 request,
                 chunk -> write(emitter, "chunk", "{\"text\":\"" + escapeJson(chunk) + "\"}"),
                 full -> {
                     write(emitter, "done", "{}");
                     emitter.complete();
+                    AiUserContext.clear();
                 },
                 error -> {
                     log.error("AI 流式响应出错", error);
                     write(emitter, "error", "{\"message\":\"" + escapeJson(error.getMessage()) + "\"}");
                     emitter.completeWithError(error);
+                    AiUserContext.clear();
                 }
         );
 
-        // 客户端断开时尝试结束
         emitter.onCompletion(() -> log.debug("SSE emitter completed, session={}", request.getSessionId()));
         emitter.onTimeout(() -> {
             log.warn("SSE emitter timeout, session={}", request.getSessionId());
             emitter.complete();
+            AiUserContext.clear();
         });
 
         return emitter;
     }
 
     /**
-     * 写入一个 SSE 帧
+     * 将 JwtAuthFilter 已写入的 userId 转成 AiUserContext 工具上下文。
+     * groupId 当前未在 JwtAuthFilter 中保存；如果工具需要，后续可补。
      */
+    private void bindContext(HttpServletRequest httpReq) {
+        Object userIdObj = httpReq.getAttribute("userId");
+        Long userId = null;
+        if (userIdObj instanceof Long l) {
+            userId = l;
+        } else if (userIdObj instanceof Integer i) {
+            userId = i.longValue();
+        } else if (userIdObj != null) {
+            try { userId = Long.parseLong(userIdObj.toString()); } catch (Exception ignore) {}
+        }
+        // groupId 暂用 userId 作占位（工具内部主要读 userId）；后续可在 JwtAuthFilter 一并 set
+        AiUserContext.set(userId, userId);
+    }
+
     private void write(SseEmitter emitter, String event, String data) {
         try {
             emitter.send(SseEmitter.event().name(event).data(data, MediaType.APPLICATION_JSON));
         } catch (IOException | IllegalStateException e) {
-            // 客户端已断开，常见异常，不打 ERROR
             log.debug("SSE 写入失败（客户端可能已断开）: {}", e.getMessage());
         }
     }
 
-    /**
-     * 简单 JSON 字符串转义（防 LLM 输出含特殊字符破坏 SSE）
-     */
     private String escapeJson(String s) {
         if (s == null) return "";
         StringBuilder sb = new StringBuilder(s.length() + 8);
@@ -115,11 +130,8 @@ public class AiChatController {
                 case '\r' -> sb.append("\\r");
                 case '\t' -> sb.append("\\t");
                 default -> {
-                    if (c < 0x20) {
-                        sb.append(String.format("\\u%04x", (int) c));
-                    } else {
-                        sb.append(c);
-                    }
+                    if (c < 0x20) sb.append(String.format("\\u%04x", (int) c));
+                    else sb.append(c);
                 }
             }
         }

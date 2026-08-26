@@ -183,6 +183,8 @@
             <artifactId>langchain4j-community-dashscope</artifactId>
             <version>1.18.0-beta28</version>
         </dependency>
+        <!-- Tool Calling 用 core 自带的 @Tool + ToolSpecification 即可；
+             1.18 中没有独立的 DefaultToolExecutor 工件，本项目自实现 SimpleToolExecutor。 -->
         <!-- WebSocket（聊天功能） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
