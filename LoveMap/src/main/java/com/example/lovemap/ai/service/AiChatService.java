@@ -3,14 +3,18 @@ package com.example.lovemap.ai.service;
 import com.example.lovemap.ai.dto.ChatRequest;
 import com.example.lovemap.ai.dto.ChatResponse;
 import com.example.lovemap.ai.exception.AiDisabledException;
+import dev.langchain4j.data.message.ChatMessage;
+import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -20,6 +24,9 @@ import java.util.function.Consumer;
  * <p>
  * 使用 ObjectProvider 安全注入 ChatModel Bean（未配置 API Key 时为 null）。
  * 当前阶段不持久化历史会话：前端 localStorage 维持上下文；后续可叠加 ChatMemory。
+ * <p>
+ * 系统提示词（ai.dashscope.system-prompt）通过构造 SystemMessage 拼接到 messages 首位，
+ * 兼容 DashScope QwenChatModelBuilder 不提供 defaultSystemMessage 的限制。
  */
 @Slf4j
 @Service
@@ -28,10 +35,17 @@ public class AiChatService {
     private final ObjectProvider<ChatModel> chatModelProvider;
     private final ObjectProvider<StreamingChatModel> streamingChatModelProvider;
 
+    /**
+     * 系统提示词，由 LangChain4jConfig 以 Bean 形式注入；为空则不拼接 SystemMessage
+     */
+    private final String systemPrompt;
+
     public AiChatService(ObjectProvider<ChatModel> chatModelProvider,
-                          ObjectProvider<StreamingChatModel> streamingChatModelProvider) {
+                          ObjectProvider<StreamingChatModel> streamingChatModelProvider,
+                          @Value("${ai.dashscope.system-prompt:}") String systemPrompt) {
         this.chatModelProvider = chatModelProvider;
         this.streamingChatModelProvider = streamingChatModelProvider;
+        this.systemPrompt = systemPrompt == null ? "" : systemPrompt;
     }
 
     // ==================== 非流式 ====================
@@ -42,10 +56,13 @@ public class AiChatService {
     public ChatResponse chat(ChatRequest request) {
         String userText = safeText(request.getMessage());
         ChatModel chatModel = requireChatModel();
-        log.info("AI chat (non-stream) session={}, text-len={}", request.getSessionId(), userText.length());
+        log.info("AI chat (non-stream) session={}, text-len={}, systemPrompt={}",
+                request.getSessionId(), userText.length(),
+                systemPrompt.isBlank() ? "<none>" : "<configured>");
 
-        dev.langchain4j.model.chat.response.ChatResponse lcResponse =
-                chatModel.chat(UserMessage.from(userText));
+        List<ChatMessage> messages = buildMessages(userText);
+
+        dev.langchain4j.model.chat.response.ChatResponse lcResponse = chatModel.chat(messages);
         String aiText = lcResponse.aiMessage().text();
 
         return ChatResponse.builder()
@@ -77,8 +94,11 @@ public class AiChatService {
         }
 
         String userText = safeText(request.getMessage());
-        log.info("AI chat (stream) session={}, text-len={}", request.getSessionId(), userText.length());
+        log.info("AI chat (stream) session={}, text-len={}, systemPrompt={}",
+                request.getSessionId(), userText.length(),
+                systemPrompt.isBlank() ? "<none>" : "<configured>");
 
+        List<ChatMessage> messages = buildMessages(userText);
         StringBuilder fullText = new StringBuilder();
 
         StreamingChatResponseHandler handler = new StreamingChatResponseHandler() {
@@ -114,15 +134,26 @@ public class AiChatService {
         };
 
         try {
-            // 1.18 API：StreamingChatModel.chat(String | List<ChatMessage>, handler)
-            // 这里直接传文本，最简形态
-            streamingChatModel.chat(userText, handler);
+            // 1.18 API：StreamingChatModel.chat(List<ChatMessage>, handler)
+            streamingChatModel.chat(messages, handler);
         } catch (Exception e) {
             onError.accept(e);
         }
     }
 
     // ==================== 工具 ====================
+
+    /**
+     * 构造 messages 列表：SystemMessage（可选） + UserMessage
+     */
+    private List<ChatMessage> buildMessages(String userText) {
+        List<ChatMessage> messages = new ArrayList<>(2);
+        if (systemPrompt != null && !systemPrompt.isBlank()) {
+            messages.add(SystemMessage.from(systemPrompt));
+        }
+        messages.add(UserMessage.from(userText));
+        return messages;
+    }
 
     private ChatModel requireChatModel() {
         ChatModel model = chatModelProvider.getIfAvailable();

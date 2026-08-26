@@ -17,6 +17,10 @@ import org.springframework.context.annotation.Configuration;
  * 1. 不引入 langchain4j-spring-boot-starter，避免自动装配冲突
  * 2. 通过 @ConditionalOnProperty(ai.enabled=true) 控制是否生成 Bean
  * 3. API Key 缺失：启动期记 ERROR，但应用继续启动；Controller 会降级返回 503
+ * <p>
+ * 注：DashScope 的 QwenChatModelBuilder 不提供 defaultSystemMessage(...) 方法，
+ * 所以 system prompt 改为在调用层 AiChatService 中以 SystemMessage 形式拼接进 messages 列表，
+ * 配置项仍由本类读取并暴露成 systemPrompt Bean 注入。
  */
 @Slf4j
 @Configuration
@@ -39,6 +43,12 @@ public class LangChain4jConfig {
     private Integer timeoutSeconds;
 
     /**
+     * 系统提示词（可选），从 yml 注入；为空则不传 SystemMessage，使用 Qwen 默认行为
+     */
+    @Value("${ai.dashscope.system-prompt:}")
+    private String systemPrompt;
+
+    /**
      * 非流式 ChatModel
      * <p>
      * 未配置 API Key 时返回 null Bean，由 AiChatController 通过 ObjectProvider 安全获取
@@ -49,7 +59,8 @@ public class LangChain4jConfig {
             log.error("[AI] DASHSCOPE_API_KEY 未配置，AI ChatModel Bean 将为 null，相关接口将返回 503");
             return null;
         }
-        log.info("初始化 DashScope ChatModel: model={}", modelName);
+        log.info("初始化 DashScope ChatModel: model={}, systemPrompt={}", modelName,
+                systemPrompt.isBlank() ? "<none>" : "<configured>");
         return QwenChatModel.builder()
                 .apiKey(apiKey)
                 .modelName(modelName)
@@ -67,7 +78,8 @@ public class LangChain4jConfig {
             log.error("[AI] DASHSCOPE_API_KEY 未配置，AI StreamingChatModel Bean 将为 null");
             return null;
         }
-        log.info("初始化 DashScope StreamingChatModel: model={}", modelName);
+        log.info("初始化 DashScope StreamingChatModel: model={}, systemPrompt={}", modelName,
+                systemPrompt.isBlank() ? "<none>" : "<configured>");
         return QwenStreamingChatModel.builder()
                 .apiKey(apiKey)
                 .modelName(modelName)
