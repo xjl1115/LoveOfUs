@@ -17,6 +17,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -134,8 +135,10 @@ public class PhotoTool {
     }
 
     private Map<String, Object> toMap(TimelinePhotoVO p) {
-        Map<String, Object> map = new HashMap<>();
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("type", "image");
         map.put("photoId", p.getId());
+        map.put("imageUrl", p.getStoragePath());
         map.put("takenDate", p.getTakenDate());
         map.put("locationName", p.getLocationName());
         map.put("city", p.getCity());

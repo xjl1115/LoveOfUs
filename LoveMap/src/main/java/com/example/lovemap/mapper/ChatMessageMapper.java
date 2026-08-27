@@ -65,6 +65,11 @@ public interface ChatMessageMapper {
     int softDeleteBatch(@Param("ids") List<Long> ids, @Param("userId") Integer userId);
 
     /**
+     * 一次性隐藏当前用户与某伴侣之间的所有聊天记录（仅本人视图清空，对端仍可见）
+     */
+    int softDeleteAllWithPeer(@Param("userId") Integer userId, @Param("peerId") Integer peerId);
+
+    /**
      * 撤回单条消息（仅当发送者是本人）
      */
     int revoke(@Param("id") Long id, @Param("senderId") Integer senderId, @Param("revokedAt") LocalDateTime revokedAt);

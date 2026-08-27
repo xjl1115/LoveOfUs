@@ -78,6 +78,15 @@
         </foreach>
     </insert>
 
+    <!-- 一次性隐藏当前用户与某伴侣的所有聊天记录（按用户维度，对端仍可见） -->
+    <insert id="softDeleteAllWithPeer">
+        INSERT IGNORE INTO chat_message_delete (message_id, user_id)
+        SELECT id, #{userId}
+        FROM chat_message
+        WHERE (sender_id = #{userId} AND receiver_id = #{peerId})
+           OR (sender_id = #{peerId} AND receiver_id = #{userId})
+    </insert>
+
     <!-- 撤回：仅本人发送的消息 -->
     <update id="revoke">
         UPDATE chat_message

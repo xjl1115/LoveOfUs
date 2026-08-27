@@ -80,4 +80,27 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
+
+    /**
+     * AI 会话清理线程池（删除会话后的消息物理删除 + Redis 短期记忆清理）
+     * <p>
+     * 设计要点：
+     * - core/max 较小（2/4），清理任务是低频 + 单会话数据量可控的操作
+     * - queueCapacity 较大（500）：批量删除场景下能缓冲尖峰
+     * - CallerRunsPolicy：队列满时由调用方同步执行，避免丢任务
+     * - 关闭时优雅等待，避免半完成清理造成 Redis/DB 不一致
+     */
+    @Bean("aiSessionCleanupExecutor")
+    public ThreadPoolTaskExecutor aiSessionCleanupExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(500);
+        executor.setThreadNamePrefix("ai-session-cleanup-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(60);
+        executor.initialize();
+        return executor;
+    }
 }

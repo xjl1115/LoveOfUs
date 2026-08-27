@@ -152,8 +152,9 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             return;
         }
 
-        // 接收方当前停留在聊天页：直接标记为已读，并通过 SSE 实时推送已读回执给发送方
         Integer receiverId = Math.toIntExact(entity.getReceiverId());
+
+        // 接收方当前停留在聊天页：直接标记为已读，并通过 SSE 实时推送已读回执给发送方
         if (chatPresenceRegistry.isInChatWith(receiverId, userId)) {
             chatMessageMapper.markRead(entity.getId(), receiverId, LocalDateTime.now());
             entity.setIsRead(1);
@@ -165,6 +166,20 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             readEvent.put("partnerId", userId);
             readEvent.put("readAt", entity.getReadAt().toString());
             sseService.sendEvent(userId, "chat-read", readEvent);
+        }
+
+        // 实时推送接收方未读数（SSE）- 不依赖接收方是否在聊天页，
+        // 即使接收方停留在首页等其他页面，右上角未读角标也能立刻更新
+        // 注意：必须在 markRead 之后再推送，否则会推送包含本条刚发消息的"假未读"
+        try {
+            long unreadCount = chatMessageMapper.countUnreadFrom(userId, receiverId);
+            Map<String, Object> unreadEvent = new LinkedHashMap<>();
+            unreadEvent.put("count", unreadCount);
+            unreadEvent.put("partnerId", userId);
+            sseService.sendEvent(receiverId, "chat-unread-count", unreadEvent);
+            log.info("聊天未读数 SSE 已推送, senderId={}, receiverId={}, count={}", userId, receiverId, unreadCount);
+        } catch (Exception e) {
+            log.warn("聊天未读数 SSE 推送失败, senderId={}, receiverId={}", userId, receiverId, e);
         }
 
         // 回执发送者（含 server id / createdAt）

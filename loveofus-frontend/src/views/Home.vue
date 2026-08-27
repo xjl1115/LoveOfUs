@@ -113,8 +113,10 @@ let chatUnreadTimer: number | null = null
 onMounted(() => {
   loadUserStats()
   loadPhotos(true)
-  // 进入首页时拉一次未读数；之后每 30s 轮询一次
+  // 进入首页时拉一次未读数；之后每 30s 轮询一次（兜底）
   chatUnread.refresh()
+  // 订阅 SSE chat-unread-count，实时更新右上角未读角标
+  chatUnread.startRealtime()
   chatUnreadTimer = window.setInterval(() => chatUnread.refresh(), 30_000)
 })
 
@@ -130,6 +132,7 @@ onBeforeUnmount(() => {
     clearInterval(chatUnreadTimer)
     chatUnreadTimer = null
   }
+  chatUnread.stopRealtime()
 })
 
 async function loadUserStats() {

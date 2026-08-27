@@ -30,6 +30,48 @@ export interface ChatMessage {
   streaming?: boolean
   /** 失败标记 */
   error?: boolean
+  /** 导出完成卡片（role=system 时携带），用于点此下载 */
+  export?: ExportCardPayload
+  /** 图片列表（role=ai 时携带），用于缩略图渲染 */
+  images?: ChatImageItem[]
+}
+
+/** AI 聊天中展示的图片条目 */
+export interface ChatImageItem {
+  /** 图片可访问 URL（OSS 完整地址或代理路径） */
+  imageUrl: string
+  /** 照片 ID（可选） */
+  photoId?: number | string
+  /** 拍摄日期 */
+  takenDate?: string
+  /** 城市 */
+  city?: string
+  /** 地点名 */
+  locationName?: string
+  /** 描述 */
+  description?: string
+}
+
+/** 导出完成卡片载荷（来自 SSE ai-export-completed） */
+export interface ExportCardPayload {
+  /** 导出任务 ID */
+  exportId: number | string
+  /** 导出格式 zip / pdf */
+  format: string
+  /** 照片数 */
+  photoCount?: number
+  /** 文件大小（字节） */
+  fileSize?: number
+  /** 构造好的下载文件名 */
+  fileName?: string
+  /** 相对路径：/api/exports/{id}/download */
+  downloadUrl?: string
+  /** 'completed' / 'failed' */
+  status?: 'completed' | 'failed'
+  /** 失败时的错误信息 */
+  error?: string
+  /** 完成时间（ISO 字符串） */
+  completedAt?: string
 }
 
 /** 流式请求体 */
@@ -183,7 +225,7 @@ export function chatStream(
   opts: ChatStreamOptions | null,
   onChunk: (text: string) => void,
   onTool: ((toolName: string, summary?: string) => void) | null,
-  onDone: () => void,
+  onDone: (images: ChatImageItem[]) => void,
   onError: (err: Error) => void
 ): () => void {
   const userStore = useUserStore()
@@ -208,7 +250,8 @@ export function chatStream(
         } else if (event.event === 'tool') {
           onTool?.(payload.name || '工具', payload.summary)
         } else if (event.event === 'done') {
-          onDone()
+          const images = Array.isArray(payload.images) ? (payload.images as ChatImageItem[]) : []
+          onDone(images)
         } else if (event.event === 'error') {
           onError(new Error(payload.message || 'AI 服务异常'))
         }

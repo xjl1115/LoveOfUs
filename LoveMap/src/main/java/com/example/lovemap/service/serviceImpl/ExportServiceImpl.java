@@ -1,6 +1,7 @@
 package com.example.lovemap.service.serviceImpl;
 
 import com.example.lovemap.common.Result;
+import com.example.lovemap.common.ResultCode;
 import com.example.lovemap.common.constant.ExportConstant;
 import com.example.lovemap.mapper.ExportMapper;
 import com.example.lovemap.mapper.PhotoAlbumMapper;
@@ -12,6 +13,7 @@ import com.example.lovemap.model.entity.Photo;
 import com.example.lovemap.model.entity.User;
 import com.example.lovemap.model.vo.ExportRecordVO;
 import com.example.lovemap.service.ExportService;
+import com.example.lovemap.service.SseService;
 import com.example.lovemap.service.export.PdfExportService;
 import com.example.lovemap.service.export.ZipExportService;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -64,6 +66,7 @@ public class ExportServiceImpl implements ExportService {
     // 具体格式导出服务
     private final ZipExportService zipExportService;
     private final PdfExportService pdfExportService;
+    private final SseService sseService;
 
     @Value("${export.storage-path}")
     private String exportStoragePath;
@@ -98,9 +101,11 @@ public class ExportServiceImpl implements ExportService {
     @Override
     @Transactional
     public Result<ExportRecordVO> createExport(Integer userId, ExportDTO dto) {
+        log.info("[EXPORT] 进入 createExport userId={}, dto={}", userId, dto);
         // 1. 校验用户
         User user = userMapper.selectById(userId);
         if (user == null) {
+            log.warn("[EXPORT] 用户不存在 userId={}", userId);
             return Result.notFound("用户不存在");
         }
 
@@ -110,18 +115,27 @@ public class ExportServiceImpl implements ExportService {
             format = "zip";
         }
         if (!"zip".equals(format) && !"pdf".equals(format)) {
+            log.warn("[EXPORT] 格式非法 userId={}, format={}", userId, format);
             return Result.badRequest("暂不支持的导出格式: " + format);
         }
 
         // 3. 收集照片ID
         List<Long> photoIds = resolvePhotoIds(userId, user.getGroupId(), dto);
+        log.info("[EXPORT] resolvePhotoIds userId={}, groupId={}, exportType={}, resolvedCount={}",
+                userId, user.getGroupId(), dto.getExportType(),
+                photoIds == null ? 0 : photoIds.size());
         if (photoIds == null || photoIds.isEmpty()) {
+            log.warn("[EXPORT] 解析照片ID为空 userId={}, exportType={}, startDate={}, endDate={}, albumId={}, selectedCount={}",
+                    userId, dto.getExportType(), dto.getStartDate(), dto.getEndDate(),
+                    dto.getAlbumId(),
+                    dto.getPhotoIds() == null ? 0 : dto.getPhotoIds().size());
             return Result.badRequest("没有可导出的照片");
         }
 
         // 4. 查询照片信息，用于计数
         List<Photo> photos = photoMapper.selectBatchIds(photoIds);
         if (photos == null || photos.isEmpty()) {
+            log.warn("[EXPORT] selectBatchIds 返回空 userId={}, idsCount={}", userId, photoIds.size());
             return Result.badRequest("没有可导出的照片");
         }
 
@@ -148,7 +162,8 @@ public class ExportServiceImpl implements ExportService {
         exportMapper.insert(record);
 
         Long taskId = record.getId();
-        log.info("创建导出任务成功: id={}, userId={}, format={}, photoCount={}", taskId, userId, format, photos.size());
+        log.info("[EXPORT] 创建导出任务成功 id={}, userId={}, format={}, photoCount={}, storagePath={}",
+                taskId, userId, format, photos.size(), exportStoragePath);
 
         // 7. 尝试获取分布式锁，防止同一用户并发导出
         String lockKey = ExportConstant.EXPORT_LOCK_KEY_PREFIX + userId;
@@ -156,13 +171,22 @@ public class ExportServiceImpl implements ExportService {
                 Collections.singletonList(lockKey),
                 String.valueOf(ExportConstant.EXPORT_LOCK_TIMEOUT));
         if (locked == null || locked == 0) {
-            log.warn("用户 {} 已有导出任务正在执行，新任务 {} 排队等待", userId, taskId);
+            log.warn("[EXPORT] 用户 {} 已有导出任务正在执行，新任务 {} 排队等待 lockKey={}", userId, taskId, lockKey);
+        } else {
+            log.info("[EXPORT] 获取分布式锁成功 userId={}, taskId={}, lockKey={}", userId, taskId, lockKey);
         }
 
         // 8. 异步执行导出
         final String acquiredLockKey = lockKey;
         final boolean lockAcquired = (locked != null && locked == 1);
-        exportTaskExecutor.execute(() -> processExport(taskId, userId, dto, photos, acquiredLockKey, lockAcquired));
+        try {
+            exportTaskExecutor.execute(() -> processExport(taskId, userId, dto, photos, acquiredLockKey, lockAcquired));
+            log.info("[EXPORT] 已提交异步任务 userId={}, taskId={}, executor={}", userId, taskId, exportTaskExecutor);
+        } catch (Exception e) {
+            log.error("[EXPORT] 提交异步任务失败 userId={}, taskId={}", userId, taskId, e);
+            exportMapper.updateStatus(toStatusRecord(taskId, "failed"));
+            return Result.error(ResultCode.INTERNAL_SERVER_ERROR, "提交异步任务失败：" + e.getMessage());
+        }
 
         // 9. 返回VO
         return Result.success("导出任务已创建", toVO(record));
@@ -266,16 +290,19 @@ public class ExportServiceImpl implements ExportService {
      */
     private void processExport(Long taskId, Integer userId, ExportDTO dto, List<Photo> photos,
                                String lockKey, boolean lockAcquired) {
+        log.info("[EXPORT-ASYNC] 进入 processExport taskId={}, userId={}, format={}, photoCount={}",
+                taskId, userId, dto.getFormat(), photos == null ? 0 : photos.size());
         try {
             // 检查是否被取消
             if (cancelFlags.contains(taskId)) {
+                log.warn("[EXPORT-ASYNC] 任务已标记取消，退出 taskId={}", taskId);
                 cancelFlags.remove(taskId);
                 return;
             }
 
             // 如果未持有锁，尝试重试（最多 5 次，间隔 3 秒）
             if (!lockAcquired) {
-                log.info("任务 {} 等待获取导出锁, userId={}", taskId, userId);
+                log.info("[EXPORT-ASYNC] 任务 {} 等待获取导出锁, userId={}", taskId, userId);
                 for (int i = 0; i < 5; i++) {
                     try {
                         Thread.sleep(3000);
@@ -284,6 +311,7 @@ public class ExportServiceImpl implements ExportService {
                         break;
                     }
                     if (cancelFlags.contains(taskId)) {
+                        log.warn("[EXPORT-ASYNC] 等待锁期间任务被取消 taskId={}", taskId);
                         cancelFlags.remove(taskId);
                         return;
                     }
@@ -292,30 +320,41 @@ public class ExportServiceImpl implements ExportService {
                             String.valueOf(ExportConstant.EXPORT_LOCK_TIMEOUT));
                     if (locked != null && locked == 1) {
                         lockAcquired = true;
-                        log.info("任务 {} 获取导出锁成功, userId={}", taskId, userId);
+                        log.info("[EXPORT-ASYNC] 任务 {} 第 {} 次重试获取导出锁成功", taskId, i + 1);
                         break;
                     }
                 }
                 if (!lockAcquired) {
-                    log.warn("任务 {} 获取导出锁超时，标记为失败, userId={}", taskId, userId);
+                    log.warn("[EXPORT-ASYNC] 任务 {} 获取导出锁超时（5次重试结束），标记为失败", taskId);
                     exportMapper.updateStatus(toStatusRecord(taskId, "failed"));
                     return;
                 }
             }
 
             // 更新状态为 processing
+            log.info("[EXPORT-ASYNC] 更新状态为 processing taskId={}", taskId);
             exportMapper.updateStatus(toStatusRecord(taskId, "processing"));
 
             // 根据格式路由到具体的导出服务
             String outputPath;
             String format = dto.getFormat() != null ? dto.getFormat() : "zip";
+            log.info("[EXPORT-ASYNC] 开始生成导出文件 taskId={}, format={}, storagePath={}",
+                    taskId, format, exportStoragePath);
             outputPath = switch (format) {
-                case "pdf" -> pdfExportService.generatePdf(taskId, userId, photos, dto, exportStoragePath);
-                default -> zipExportService.generateZip(taskId, userId, photos, dto, exportStoragePath);
+                case "pdf" -> {
+                    log.info("[EXPORT-ASYNC] 路由到 PdfExportService taskId={}", taskId);
+                    yield pdfExportService.generatePdf(taskId, userId, photos, dto, exportStoragePath);
+                }
+                default -> {
+                    log.info("[EXPORT-ASYNC] 路由到 ZipExportService taskId={}", taskId);
+                    yield zipExportService.generateZip(taskId, userId, photos, dto, exportStoragePath);
+                }
             };
+            log.info("[EXPORT-ASYNC] 生成文件结束 taskId={}, outputPath={}", taskId, outputPath);
 
             // 检查是否被取消
             if (cancelFlags.contains(taskId)) {
+                log.warn("[EXPORT-ASYNC] 生成期间任务被取消 taskId={}, outputPath={}", taskId, outputPath);
                 cancelFlags.remove(taskId);
                 try {
                     if (outputPath != null) Files.deleteIfExists(Paths.get(outputPath));
@@ -326,7 +365,13 @@ public class ExportServiceImpl implements ExportService {
 
             // 获取文件大小
             File outputFile = new File(outputPath);
+            if (!outputFile.exists()) {
+                log.error("[EXPORT-ASYNC] 导出文件不存在 taskId={}, outputPath={}", taskId, outputPath);
+                exportMapper.updateStatus(toStatusRecord(taskId, "failed"));
+                return;
+            }
             long fileSize = outputFile.length();
+            log.info("[EXPORT-ASYNC] 导出文件大小 taskId={}, fileSize={} bytes", taskId, fileSize);
 
             // 更新为 completed
             ExportRecord updateRecord = new ExportRecord();
@@ -335,13 +380,41 @@ public class ExportServiceImpl implements ExportService {
             updateRecord.setFileSize(fileSize);
             exportMapper.updateCompleted(updateRecord);
 
-            log.info("导出任务完成: id={}, filePath={}, fileSize={} bytes", taskId, outputPath, fileSize);
+            log.info("[EXPORT-ASYNC] 导出任务完成 taskId={}, filePath={}, fileSize={} bytes", taskId, outputPath, fileSize);
+
+            // 推送 SSE 通知到 AI 聊天界面
+            try {
+                java.util.Map<String, Object> payload = new java.util.LinkedHashMap<>();
+                payload.put("exportId", taskId);
+                payload.put("format", dto.getFormat());
+                payload.put("photoCount", photos == null ? 0 : photos.size());
+                payload.put("fileSize", fileSize);
+                payload.put("fileName", buildDownloadFileName(taskId, dto.getFormat()));
+                payload.put("downloadUrl", "/api/exports/" + taskId + "/download");
+                payload.put("completedAt", LocalDateTime.now().toString());
+                sseService.sendEvent(userId, "ai-export-completed", payload);
+                log.info("[EXPORT-ASYNC] SSE 已推送 ai-export-completed userId={}, taskId={}", userId, taskId);
+            } catch (Exception sseEx) {
+                log.warn("[EXPORT-ASYNC] SSE 推送失败 userId={}, taskId={}, err={}", userId, taskId, sseEx.getMessage());
+            }
 
         } catch (Exception e) {
-            log.error("导出任务失败: id={}", taskId, e);
+            log.error("[EXPORT-ASYNC] 导出任务失败 taskId={}, errMsg={}", taskId, e.getMessage(), e);
             try {
                 exportMapper.updateStatus(toStatusRecord(taskId, "failed"));
+                log.info("[EXPORT-ASYNC] 已将任务标记为 failed taskId={}", taskId);
             } catch (Exception ignored) {
+            }
+            // 失败时也推送 SSE，AI 聊天界面提示用户
+            try {
+                java.util.Map<String, Object> payload = new java.util.LinkedHashMap<>();
+                payload.put("exportId", taskId);
+                payload.put("format", dto.getFormat());
+                payload.put("status", "failed");
+                payload.put("error", e.getMessage());
+                sseService.sendEvent(userId, "ai-export-completed", payload);
+            } catch (Exception sseEx) {
+                log.warn("[EXPORT-ASYNC] 失败 SSE 推送异常 userId={}, taskId={}, err={}", userId, taskId, sseEx.getMessage());
             }
         } finally {
             cancelFlags.remove(taskId);
@@ -349,8 +422,9 @@ public class ExportServiceImpl implements ExportService {
             if (lockAcquired) {
                 try {
                     redisTemplate.execute(getLockReleaseScript(), Collections.singletonList(lockKey));
+                    log.info("[EXPORT-ASYNC] 已释放分布式锁 lockKey={}", lockKey);
                 } catch (Exception e) {
-                    log.error("释放导出锁失败, lockKey: {}", lockKey, e);
+                    log.error("[EXPORT-ASYNC] 释放导出锁失败 lockKey={}", lockKey, e);
                 }
             }
         }
@@ -410,6 +484,14 @@ public class ExportServiceImpl implements ExportService {
         vo.setCreatedAt(record.getCreatedAt());
         vo.setCompletedAt(record.getCompletedAt());
         return vo;
+    }
+
+    /**
+     * 构造下载文件名（LoveOfUs-export-{taskId}.{ext}）
+     */
+    private String buildDownloadFileName(Long taskId, String format) {
+        String ext = (format == null) ? "zip" : format.toLowerCase();
+        return "LoveOfUs-export-" + taskId + "." + ext;
     }
 
     /**

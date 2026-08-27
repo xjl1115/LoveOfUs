@@ -9,6 +9,9 @@
       @click-left="onBack"
     >
       <template #right>
+        <span class="nav-icon" @click="onNewSession" title="新建对话">
+          <van-icon name="plus" size="22" />
+        </span>
         <span class="nav-icon" @click="onOpenHistory" title="历史会话">
           <van-icon name="clock-o" size="20" />
         </span>
@@ -89,6 +92,7 @@ import { useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 import MessageBubble from '@/components/MessageBubble.vue'
 import QuickSuggestions, { type QuickQuestion } from '@/components/QuickSuggestions.vue'
+import { getNotificationSSE } from '@/api/systemMessage'
 import {
   getSessionId,
   newSession,
@@ -98,7 +102,8 @@ import {
   chatStream,
   chatOnce,
   getAiSessionDetail,
-  type ChatMessage
+  type ChatMessage,
+  type ExportCardPayload
 } from '@/api/aiChat'
 
 const router = useRouter()
@@ -187,11 +192,47 @@ onMounted(async () => {
   } else {
     pushSystemMessage('我是你的恋爱回忆管家 🌸 有什么事尽管问我～')
   }
+
+  // 订阅 SSE 导出完成事件
+  const sse = getNotificationSSE()
+  const onExportCompleted = (data: ExportCardPayload) => {
+    const payload: ExportCardPayload = {
+      exportId: data.exportId,
+      format: data.format,
+      photoCount: data.photoCount,
+      fileSize: data.fileSize,
+      fileName: data.fileName,
+      downloadUrl: data.downloadUrl,
+      status: data.status || 'completed',
+      error: data.error,
+      completedAt: data.completedAt
+    }
+    const text =
+      payload.status === 'failed'
+        ? `导出失败了：${payload.error || '未知原因'}`
+        : `导出完成 · ${(payload.format || '').toUpperCase()} · ${payload.photoCount ?? 0} 张`
+    messages.value.push({
+      id: cryptoId(),
+      role: 'system',
+      content: text,
+      createdAt: Date.now(),
+      export: payload
+    })
+    scrollToBottom()
+    showToast(payload.status === 'failed' ? '导出失败' : '导出已完成，点此下载')
+  }
+  sse.on('ai-export-completed', onExportCompleted)
+  _exportUnbind = () => sse.off('ai-export-completed', onExportCompleted)
 })
+
+// 用 module-level 引用存放 unbind 回调，避免 onMounted 作用域与 onBeforeUnmount 不共享
+let _exportUnbind: (() => void) | null = null
 
 onBeforeUnmount(() => {
   cancelStream?.()
   saveHistory(messages.value)
+  // 解绑 SSE：在 onMounted 注册时已把 unbind 写到 _exportUnbind
+  if (_exportUnbind) _exportUnbind()
 })
 
 // ==================== 工具方法 ====================
@@ -243,6 +284,17 @@ function onClear() {
     .catch(() => {
       // 取消
     })
+}
+
+function onNewSession() {
+  cancelStream?.()
+  saveHistory(messages.value)
+  // 清空本地历史 → 生成新的 sessionId → 清空当前消息
+  clearHistory()
+  newSession()
+  messages.value = []
+  inputText.value = ''
+  showToast('已新建对话')
 }
 
 function onOpenHistory() {
@@ -314,10 +366,14 @@ async function onSend() {
       })
       scrollToBottom()
     },
-    () => {
+    (images) => {
       const idx = messages.value.findIndex((m) => m.id === aiMsg.id)
       if (idx >= 0) {
-        messages.value[idx] = { ...messages.value[idx], streaming: false }
+        messages.value[idx] = {
+          ...messages.value[idx],
+          streaming: false,
+          images: images && images.length ? images : messages.value[idx].images
+        }
       }
       loading.value = false
       cancelStream = null

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.lovemap.mapper.AnniversaryReminderMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.lovemap.model.entity.AnniversaryReminder">
+        <id column="id" property="id"/>
+        <result column="group_id" property="groupId"/>
+        <result column="anniversary_id" property="anniversaryId"/>
+        <result column="remind_days" property="remindDays"/>
+        <result column="remind_date" property="remindDate"/>
+        <result column="is_sent" property="isSent"/>
+        <result column="sent_at" property="sentAt"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO anniversary_reminder (group_id, anniversary_id, remind_days, remind_date, is_sent, created_at)
+        VALUES (#{groupId}, #{anniversaryId}, #{remindDays}, #{remindDate}, 0, NOW())
+        ON DUPLICATE KEY UPDATE remind_date = VALUES(remind_date), is_sent = 0
+    </insert>
+
+    <select id="selectByAnniversary" resultMap="BaseResultMap">
+        SELECT id, group_id, anniversary_id, remind_days, remind_date, is_sent, sent_at, created_at
+        FROM anniversary_reminder
+        WHERE anniversary_id = #{anniversaryId}
+        ORDER BY remind_days DESC
+    </select>
+
+    <select id="selectByGroupAndId" resultMap="BaseResultMap">
+        SELECT id, group_id, anniversary_id, remind_days, remind_date, is_sent, sent_at, created_at
+        FROM anniversary_reminder
+        WHERE id = #{id} AND group_id = #{groupId}
+    </select>
+
+    <delete id="deleteByAnniversary">
+        DELETE FROM anniversary_reminder WHERE anniversary_id = #{anniversaryId}
+    </delete>
+
+</mapper>

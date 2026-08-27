@@ -11,6 +11,7 @@ import {
   enterChatPage,
   heartbeatChatPage,
   leaveChatPage,
+  clearChatHistory,
   deleteMessage as apiDeleteMessage,
   deleteMessagesBatch as apiDeleteMessagesBatch,
   recallMessage as apiRecallMessage,
@@ -360,6 +361,33 @@ async function loadHistory() {
   }
 }
 
+// 清空本地聊天记录（仅本人视图清空，伴侣仍可看到所有消息）
+async function clearLocalChat() {
+  if (messages.value.length === 0) {
+    showToast('暂无聊天记录')
+    return
+  }
+  try {
+    await showConfirmDialog({
+      title: '清空聊天记录',
+      message: '确定清空本端所有聊天记录吗？\n（仅影响你的视图，伴侣仍能看到消息）'
+    })
+  } catch {
+    // 用户取消
+    return
+  }
+  try {
+    await clearChatHistory()
+    messages.value = []
+    unreadStore.reset()
+    await unreadStore.refresh()
+    showToast('已清空')
+  } catch (e) {
+    console.error('clearLocalChat', e)
+    showToast('清空失败，请稍后重试')
+  }
+}
+
 // 标记已读
 async function doMarkAllRead() {
   try {
@@ -383,7 +411,16 @@ function connect() {
 
   ws.value.onopen = () => {
     connected.value = true
-    doMarkAllRead()
+    // 进入聊天页：标记所有未读消息为已读，并主动通过 WS READ 通知伴侣实时刷新"已读"
+    doMarkAllRead().then(() => {
+      try {
+        if (ws.value && ws.value.readyState === WebSocket.OPEN) {
+          ws.value.send(JSON.stringify({ type: 'READ' }))
+        }
+      } catch {
+        // WS 异常时静默，DB 已读已生效，下次轮询也会同步
+      }
+    })
   }
 
   ws.value.onclose = () => {
@@ -417,16 +454,20 @@ function connect() {
           isRead: msg.isRead ?? 0,
           createdAt: msg.createdAt
         }
+        console.log('[chat] WS CHAT', { clientMsgId: msg.clientMsgId, incoming, isRead: incoming.isRead })
         // 去重（基于 clientMsgId）
         if (msg.clientMsgId) {
           const idx = messages.value.findIndex((m: any) => m.clientMsgId === msg.clientMsgId)
           if (idx >= 0) {
-            messages.value[idx] = { ...messages.value[idx], ...incoming }
+            // 关键：用新数组引用 + 不可变更新，保证 Vue3 响应式触发 + 模板重新渲染"已读"
+            messages.value = messages.value.map((m, i) =>
+              i === idx ? { ...m, ...incoming } : m
+            )
             scrollToBottom()
             return
           }
         }
-        messages.value.push(incoming)
+        messages.value = [...messages.value, incoming]
         // 如果是对方发来的，自动标记已读并刷新未读数
         if (incoming.senderId !== currentUserId.value) {
           doMarkAllRead().then(() => unreadStore.refresh())
@@ -646,20 +687,24 @@ let sseChatReadHandler: ((data: any) => void) | null = null
 function registerSseChatRead() {
   const sse = getNotificationSSE()
   sseChatReadHandler = (data: { lastReadId?: number; partnerId?: number }) => {
+    console.log('[chat] SSE chat-read', data)
     if (!data || !data.lastReadId) return
     // 把所有 id <= lastReadId 且发送者为本人的消息标记为已读
     const lastId = Number(data.lastReadId)
     if (Number.isNaN(lastId)) return
+    // 关键：放宽条件 - 接收消息时 id 可能尚未由 WS ack 写入，先标记发送者 = 本人 且未读的所有消息
+    // （不影响"本人发送的较旧未读消息"，因为 SSE 触发本身就意味着对方刚刚读了某条）
     let changed = false
     messages.value = messages.value.map((m) => {
-      if (m.senderId === currentUserId.value && m.id && m.id <= lastId && m.isRead !== 1) {
-        changed = true
-        return { ...m, isRead: 1 }
-      }
-      return m
+      if (m.senderId !== currentUserId.value) return m
+      if (m.isRead === 1) return m
+      // 有 id 且 id <= lastId 才更新（保护后续尚未发送的消息不会被提前标记）
+      if (m.id != null && m.id > lastId) return m
+      changed = true
+      return { ...m, isRead: 1 }
     })
     if (changed) {
-      // 不强求弹 toast，避免打扰用户
+      console.log('[chat] SSE chat-read 标记消息为已读, lastReadId=', lastId)
     }
   }
   sse.on('chat-read', sseChatReadHandler)
@@ -713,9 +758,17 @@ if (typeof window !== 'undefined') {
       @click-left="selectingMode ? exitSelectMode() : router.back()"
     >
       <template v-if="!selectingMode" #right>
-        <span class="conn-status" :class="{ online: isOnline }">
-          <span class="dot"></span>
-          {{ isOnline ? '在线' : '离线' }}
+        <span class="nav-actions">
+          <van-icon
+            name="delete-o"
+            size="20"
+            class="nav-icon"
+            @click="clearLocalChat"
+          />
+          <span class="conn-status" :class="{ online: isOnline }">
+            <span class="dot"></span>
+            {{ isOnline ? '在线' : '离线' }}
+          </span>
         </span>
       </template>
       <template v-else #right>
@@ -873,6 +926,20 @@ if (typeof window !== 'undefined') {
   gap: 4px;
   font-size: 12px;
   color: #999;
+}
+.nav-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.nav-icon {
+  color: $text-tertiary;
+  cursor: pointer;
+  padding: 4px;
+  transition: color 0.2s;
+}
+.nav-icon:active {
+  color: $primary-color;
 }
 .conn-status .dot {
   width: 8px;

@@ -5,6 +5,8 @@ import com.example.lovemap.ai.dto.ChatRequest;
 import com.example.lovemap.ai.dto.ChatResponse;
 import com.example.lovemap.ai.service.AiChatService;
 import com.example.lovemap.common.Result;
+import com.example.lovemap.mapper.UserMapper;
+import com.example.lovemap.model.entity.User;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -43,6 +45,7 @@ import java.io.IOException;
 public class AiChatController {
 
     private final AiChatService aiChatService;
+    private final UserMapper userMapper;
 
     /**
      * 非流式接口（前端降级用）
@@ -69,8 +72,16 @@ public class AiChatController {
         aiChatService.chatStream(
                 request,
                 chunk -> write(emitter, "chunk", "{\"text\":\"" + escapeJson(chunk) + "\"}"),
-                full -> {
-                    write(emitter, "done", "{}");
+                (full, images) -> {
+                    // done 帧：附带 AI 答复 + 本轮所有工具返回的图片（供前端气泡以缩略图形式展示）
+                    StringBuilder done = new StringBuilder();
+                    done.append("{\"textLen\":").append(full == null ? 0 : full.length());
+                    if (images != null && !images.isEmpty()) {
+                        done.append(",\"images\":");
+                        done.append(escapeJson(toJsonArray(images)));
+                    }
+                    done.append("}");
+                    write(emitter, "done", done.toString());
                     emitter.complete();
                     AiUserContext.clear();
                 },
@@ -106,8 +117,17 @@ public class AiChatController {
         } else if (userIdObj != null) {
             try { userId = Long.parseLong(userIdObj.toString()); } catch (Exception ignore) {}
         }
-        // groupId 暂用 userId 作占位（工具内部主要读 userId）；后续可在 JwtAuthFilter 一并 set
-        AiUserContext.set(userId, userId);
+        // 真实 groupId：从 user 表反查（group_id 是情侣共享的，工具中需要它做正确隔离）
+        Long groupId = userId; // fallback：未查到时用 userId 兜底
+        try {
+            User me = userMapper.selectById(userId.intValue());
+            if (me != null && me.getGroupId() != null) {
+                groupId = me.getGroupId();
+            }
+        } catch (Exception e) {
+            log.warn("[AI] bindContext 反查 groupId 失败 userId={}", userId, e);
+        }
+        AiUserContext.set(userId, groupId);
     }
 
     private void write(SseEmitter emitter, String event, String data) {
@@ -136,5 +156,18 @@ public class AiChatController {
             }
         }
         return sb.toString();
+    }
+
+    /** 序列化图片列表为 JSON 字符串（注入 Spring Boot 自带的 ObjectMapper） */
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+
+    private String toJsonArray(java.util.List<?> list) {
+        try {
+            return objectMapper.writeValueAsString(list);
+        } catch (Exception e) {
+            log.warn("序列化图片列表失败", e);
+            return "[]";
+        }
     }
 }

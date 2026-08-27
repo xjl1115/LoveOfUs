@@ -2,6 +2,7 @@ package com.example.lovemap.ai.service.serviceImpl;
 
 import com.example.lovemap.ai.dto.AiRenameRequest;
 import com.example.lovemap.ai.service.AiSessionService;
+import com.example.lovemap.ai.service.AiShortTermMemoryService;
 import com.example.lovemap.ai.vo.AiMessageVO;
 import com.example.lovemap.ai.vo.AiSessionDetailVO;
 import com.example.lovemap.ai.vo.AiSessionSummaryVO;
@@ -15,7 +16,10 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,6 +44,16 @@ public class AiSessionServiceImpl implements AiSessionService {
     private final AiChatMessageMapper messageMapper;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
+    private final AiShortTermMemoryService shortTermMemory;
+
+    /**
+     * 自注入代理：用于在 deleteSession 内触发 @Async 方法，
+     * 避免 self-invocation 绕过 Spring AOP 代理导致 @Async 失效。
+     * @Lazy 防止构造期循环依赖。
+     */
+    @Autowired
+    @Lazy
+    private AiSessionServiceImpl self;
 
     private static final Duration CACHE_TTL = Duration.ofMinutes(10);
     private static final String LIST_KEY_FMT = "ai:session:list:%d";
@@ -218,13 +232,52 @@ public class AiSessionServiceImpl implements AiSessionService {
         AiChatSession session = sessionMapper.selectBySessionId(sessionId, uid);
         if (session == null) return Result.success(); // 幂等
 
-        // 先物理删除消息，再软删除会话
-        messageMapper.deleteBySession(sessionId, uid);
+        // 同步阶段：仅软删除会话（让列表/详情查询立即看不到）
+        // 物理删除消息 + 清理 Redis 短期记忆 → 异步执行，不阻塞响应
         sessionMapper.softDelete(sessionId, uid);
-
         invalidateListCache((int) uid);
         invalidateDetailCache(uid, sessionId);
+
+        // 触发异步清理（消息物理删除 + Redis 短期记忆清理）
+        // 通过自注入代理调用，避免 self-invocation 绕过 @Async
+        self.cleanupSessionDataAsync(uid, sessionId);
+
         return Result.success();
+    }
+
+    /**
+     * 异步清理：物理删除会话消息 + 清理 Redis 短期记忆
+     * <p>
+     * 为何可异步：
+     * <ul>
+     *   <li>软删除会话已在前置事务完成，列表/详情接口立即返回 404</li>
+     *   <li>消息物理删除仅影响 MySQL 历史检索，前端列表/详情不可见</li>
+     *   <li>Redis 短期记忆删除失败可接受（仅占 24h TTL 自然过期）</li>
+     * </ul>
+     * <p>
+     * 失败处理：异常仅日志记录，不抛出（异步任务无法回滚 HTTP 响应）。
+     * 极端情况下若彻底失败，靠 24h TTL 自然过期兜底。
+     */
+    @Async("aiSessionCleanupExecutor")
+    public void cleanupSessionDataAsync(Long userId, String sessionId) {
+        log.info("[AI-SESSION] 异步清理开始 userId={} sessionId={}", userId, sessionId);
+        try {
+            // 1. 物理删除消息
+            int deleted = messageMapper.deleteBySession(sessionId, userId);
+            log.info("[AI-SESSION] 异步清理：物理删除消息 userId={} sessionId={} rows={}",
+                    userId, sessionId, deleted);
+        } catch (Exception e) {
+            log.error("[AI-SESSION] 异步清理消息失败 userId={} sessionId={}", userId, sessionId, e);
+        }
+        try {
+            // 2. 清理 Redis 短期记忆
+            shortTermMemory.clear(userId, sessionId);
+            log.info("[AI-SESSION] 异步清理：Redis 短期记忆已清 userId={} sessionId={}",
+                    userId, sessionId);
+        } catch (Exception e) {
+            log.error("[AI-SESSION] 异步清理 Redis 失败 userId={} sessionId={}", userId, sessionId, e);
+        }
+        log.info("[AI-SESSION] 异步清理完成 userId={} sessionId={}", userId, sessionId);
     }
 
     @Override

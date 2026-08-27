@@ -172,6 +172,15 @@ export class NotificationSSE {
         this.emit('chat-read', data)
       } catch { /* ignore */ }
     })
+
+    // 监听聊天未读数变化（接收方未在聊天页时，发送方发来的新消息 → 实时推未读数给接收方）
+    this.eventSource.addEventListener('chat-unread-count', (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data) as { count: number; partnerId: number }
+        console.log('[SSE] chat-unread-count 收到:', data)
+        this.emit('chat-unread-count', data)
+      } catch (e) { /* ignore */ console.warn('[SSE] chat-unread-count 解析失败', e) }
+    })
   }
 
   // 指数退避重连

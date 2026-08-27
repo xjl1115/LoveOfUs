@@ -8,7 +8,9 @@ import com.example.lovemap.model.vo.ChatMessageVO;
 import com.example.lovemap.service.ChatService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -102,9 +104,16 @@ public class ChatController {
         return chatService.recallMessage(userId, id);
     }
 
+    @PostMapping("/clear-local")
+    @Operation(summary = "清空本地聊天记录", description = "仅清空本人视图，伴侣仍可看到所有消息")
+    public Result<Integer> clearLocalHistory(@RequestAttribute("userId") Integer userId) {
+        return chatService.clearLocalHistory(userId);
+    }
+
+    @Setter
+    @Getter
     public static class OnlineStatusVO {
         private int onlineCount;
-        public int getOnlineCount() { return onlineCount; }
-        public void setOnlineCount(int onlineCount) { this.onlineCount = onlineCount; }
+
     }
 }

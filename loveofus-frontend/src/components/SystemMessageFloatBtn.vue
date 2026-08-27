@@ -11,7 +11,7 @@
   >
     <van-badge :content="unreadCount > 0 ? unreadCount : ''" :max="99">
       <div class="btn-icon">
-        <van-icon name="chat-o" size="24" />
+        <van-icon name="bell" size="24" />
       </div>
     </van-badge>
 
@@ -147,6 +147,7 @@ import {
   NotificationSSE,
   type Notification
 } from '@/api/systemMessage'
+import { useChatUnreadStore } from '@/stores/chatUnread'
 
 // 悬浮按钮位置（默认右下角）
 const DEFAULT_POSITION = { right: 20, bottom: 80 }
@@ -399,6 +400,18 @@ function registerSseListeners() {
   }
   sseHandlers.push({ event: 'unread-count', fn: onUnreadCount })
   sse.on('unread-count', onUnreadCount)
+
+  // 同步转发聊天未读数到 chatUnread store（保证角标在所有页面实时更新）
+  const onChatUnreadCount = (data: { count: number; partnerId: number }) => {
+    try {
+      const chatUnread = useChatUnreadStore()
+      chatUnread.count = Math.max(0, Number(data?.count) || 0)
+    } catch (e) {
+      console.warn('[SSE] chat-unread-count handler failed', e)
+    }
+  }
+  sseHandlers.push({ event: 'chat-unread-count', fn: onChatUnreadCount })
+  sse.on('chat-unread-count', onChatUnreadCount)
 
   const onConnected = () => {
     console.log('[SSE] 消息通知连接已建立')

@@ -97,6 +97,13 @@ export function leaveChatPage() {
 }
 
 /**
+ * 清空本地聊天记录（仅本端视图清空，对端仍可见）
+ */
+export function clearChatHistory() {
+  return request.post<number>('/chat/clear-local')
+}
+
+/**
  * WebSocket 连接 URL（携带 token）
  * <p>
  * 默认与 axios 的 baseURL 一致：'/api'，最终路径为 '/api/ws/chat'

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.lovemap.mapper.MoodLogMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.lovemap.model.entity.MoodLog">
+        <id column="id" property="id"/>
+        <result column="group_id" property="groupId"/>
+        <result column="user_id" property="userId"/>
+        <result column="mood" property="mood"/>
+        <result column="mood_score" property="moodScore"/>
+        <result column="note" property="note"/>
+        <result column="log_date" property="logDate"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO mood_log (group_id, user_id, mood, mood_score, note, log_date, created_at)
+        VALUES (#{groupId}, #{userId}, #{mood}, #{moodScore}, #{note}, #{logDate}, NOW())
+    </insert>
+
+    <select id="selectByGroupAndDate" resultMap="BaseResultMap">
+        SELECT id, group_id, user_id, mood, mood_score, note, log_date, created_at
+        FROM mood_log
+        WHERE group_id = #{groupId}
+          AND log_date = #{logDate}
+        ORDER BY created_at ASC
+    </select>
+
+    <select id="selectByGroupInRange" resultMap="BaseResultMap">
+        SELECT id, group_id, user_id, mood, mood_score, note, log_date, created_at
+        FROM mood_log
+        WHERE group_id = #{groupId}
+          AND log_date BETWEEN #{startDate} AND #{endDate}
+        ORDER BY log_date DESC, created_at DESC
+    </select>
+
+    <select id="countByGroupInRange" resultType="java.lang.Integer">
+        SELECT COUNT(DISTINCT log_date)
+        FROM mood_log
+        WHERE group_id = #{groupId}
+          AND log_date BETWEEN #{startDate} AND #{endDate}
+    </select>
+
+</mapper>

@@ -53,4 +53,9 @@ public interface ChatService {
      * 撤回单条消息（仅本人发送且 2 分钟内）
      */
     Result<Boolean> recallMessage(Integer userId, Long id);
+
+    /**
+     * 清空本地聊天记录（仅本端隐藏，对端仍可见）
+     */
+    Result<Integer> clearLocalHistory(Integer userId);
 }

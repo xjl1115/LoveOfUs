@@ -23,7 +23,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -141,8 +143,9 @@ public class NotificationServiceImpl implements NotificationService {
             addToReadCache(userId, vo);
         }
 
-        // 更新未读数缓存
+        // 更新未读数缓存 + 推送 SSE unread-count（右上角角标实时刷新）
         decrementUnreadCount(userId);
+        pushUnreadCountSSE(userId);
 
         return Result.success(null);
     }
@@ -176,6 +179,9 @@ public class NotificationServiceImpl implements NotificationService {
                 cachedReadList.add(0, vo);
             }
             putToCache(readKey, cachedReadList);
+
+            // 推送 SSE unread-count（清零 + 列表缓存已重置，下次拉取即新状态）
+            pushUnreadCountSSE(userId);
         }
 
         return Result.success(affected);
@@ -202,9 +208,10 @@ public class NotificationServiceImpl implements NotificationService {
         removeFromCache(NotificationConstant.NOTIFICATION_UNREAD_PREFIX + userId, notificationId);
         removeFromCache(NotificationConstant.NOTIFICATION_READ_PREFIX + userId, notificationId);
 
-        // 如果是未读消息，更新未读数缓存
+        // 如果是未读消息，更新未读数缓存 + 推送 SSE unread-count
         if (notification.getIsRead() == 0) {
             decrementUnreadCount(userId);
+            pushUnreadCountSSE(userId);
         }
 
         return Result.success(null);
@@ -269,16 +276,43 @@ public class NotificationServiceImpl implements NotificationService {
         // 转换为 VO
         NotificationVO vo = convertToVO(notification);
 
-        // 推送SSE通知
+        // 推送SSE通知（新通知事件，前端 SystemMessageFloatBtn 会更新列表）
         sseService.pushNotification(userId, vo);
 
         // 存入 Redis 未读缓存（key1）
         addToUnreadCache(userId, vo);
 
-        // 更新未读数缓存
+        // 更新未读数缓存 + 推送 SSE unread-count（前端右上角角标实时刷新）
         incrementUnreadCount(userId);
+        pushUnreadCountSSE(userId);
 
         log.info("创建并推送通知成功, userId: {}, text: {}", userId, text);
+    }
+
+    /**
+     * 推送 unread-count SSE 事件（前端 SystemMessageFloatBtn 已监听，用于实时刷新右上角未读角标）
+     * <p>
+     * 设计要点：
+     * <ul>
+     *   <li>从 Redis 缓存读 count；缓存缺失时回退 DB 查询并回填缓存</li>
+     *   <li>SSE 推送失败不影响主流程（仅日志 warn）</li>
+     *   <li>调用方在修改未读数缓存（+/-）之后调用本方法</li>
+     * </ul>
+     */
+    private void pushUnreadCountSSE(Integer userId) {
+        if (userId == null) return;
+        try {
+            Long count = getUnreadCountFromCache(userId);
+            if (count == null) {
+                count = notificationMapper.countUnreadByUserId(userId);
+                putUnreadCountToCache(userId, count);
+            }
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("count", count);
+            sseService.sendEvent(userId, "unread-count", payload);
+        } catch (Exception e) {
+            log.warn("通知 unread-count SSE 推送失败, userId: {}", userId, e);
+        }
     }
 
     // ==================== Redis 缓存辅助方法 ====================
