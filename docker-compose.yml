@@ -50,7 +50,6 @@ services:
       - "${BACKEND_PORT:-8081}:8080"
     environment:
       TZ: Asia/Shanghai
-      # Spring Boot 宽松绑定：SPRING_DATASOURCE_URL 即 spring.datasource.url
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/lovemap?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-1115}
