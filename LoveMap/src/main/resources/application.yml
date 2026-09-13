@@ -27,6 +27,7 @@ spring:
     multipart:
       max-file-size: 20MB
       max-request-size: 200MB
+
   # 邮箱相关配置（生产环境通过环境变量配置）
   mail:
     host: ${MAIL_HOST:smtp.qq.com}
@@ -54,8 +55,8 @@ spring:
 # 自定义配置：验证码相关
 verify:
   code:
-    length: 6        # 验证码长度（6位数字）
-    expire: 60       # 验证码过期时间（秒）
+    length: 6        
+    expire: 60       
 
 mybatis:
   mapper-locations: classpath:mapper/*.xml

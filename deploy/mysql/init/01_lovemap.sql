@@ -10,8 +10,6 @@
  Target Server Type    : MySQL
  Target Server Version : 90200 (9.2.0)
  File Encoding         : 65001
-
- Date: 09/09/2026 21:29:17
 */
 
 SET NAMES utf8mb4;

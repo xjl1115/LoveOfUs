@@ -37,8 +37,6 @@ dist-ssr/
 logs/
 
 # ==================== Nginx 部署 ====================
-# 仅忽略运行时 PID/日志与已部署的构建产物（dist 同步过来的），
-# 保留 nginx.conf、contrib/、docs/、html/50x.html 等配置文件
 nginx-1.28.0/logs/
 nginx-1.28.0/html/assets/
 nginx-1.28.0/html/index.html
@@ -49,7 +47,14 @@ nginx-1.28.0/nginx.exe
 # ==================== 环境变量 / 凭据 ====================
 .env
 .env.*
-!.env.example
+
+# ==================== 文档 / 报告（不入仓） ====================
+docs/
+backend-production-optimization.md
+backend-security-boundary.md
+frontend-production-optimization.md
+frontend-security-audit.md
+导出功能编码指南.md
 
 # ==================== OS 杂项 ====================
 .DS_Store
