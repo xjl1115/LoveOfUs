@@ -407,9 +407,12 @@ async function addToAlbum(targetAlbumId: number) {
     align-items: center;
     justify-content: center;
 
-    .van-image {
-      width: 100% !important;
-      height: 100% !important;
+    .photo-image {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
     }
 
     .selection-overlay {

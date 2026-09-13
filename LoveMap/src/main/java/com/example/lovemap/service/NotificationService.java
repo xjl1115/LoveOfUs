@@ -1,6 +1,7 @@
 package com.example.lovemap.service;
 
 import com.example.lovemap.common.Result;
+import com.example.lovemap.common.constant.NotificationConstant;
 import com.example.lovemap.model.entity.Notification;
 import com.example.lovemap.model.vo.NotificationListVO;
 
@@ -78,4 +79,14 @@ public interface NotificationService {
      * @param text 通知内容
      */
     void createAndPushNotification(Integer userId, String text);
+
+    /**
+     * 创建通知并发送SSE推送（带类型与关联业务ID）
+     *
+     * @param userId 接收通知的用户ID
+     * @param text 通知内容
+     * @param type 通知类型，见 {@link NotificationConstant#TYPE_SYSTEM} 等
+     * @param businessId 关联业务ID（纪念日提醒为纪念日ID），可为 null
+     */
+    void createAndPushNotification(Integer userId, String text, Integer type, Long businessId);
 }

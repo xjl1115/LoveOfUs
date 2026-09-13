@@ -1,0 +1,50 @@
+-- 约会计划表与心愿清单表
+
+CREATE TABLE IF NOT EXISTS date_plans (
+    id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+    group_id            BIGINT        NOT NULL COMMENT '所属情侣组 ID',
+    title               VARCHAR(255)  NOT NULL COMMENT '约会标题',
+    plan_date           DATE          DEFAULT NULL COMMENT '计划日期',
+    time_slot           VARCHAR(32)   DEFAULT NULL COMMENT '时段：morning/noon/afternoon/evening/night',
+    scenes              VARCHAR(500)  DEFAULT NULL COMMENT '场景偏好，JSON 数组',
+    location            VARCHAR(255)  DEFAULT NULL COMMENT '约会地点',
+    location_suggestion VARCHAR(500)  DEFAULT NULL COMMENT 'AI 推荐地点描述',
+    budget              DECIMAL(10,2) DEFAULT NULL COMMENT '预算金额',
+    description         TEXT          DEFAULT NULL COMMENT '约会描述/备注',
+    reason              TEXT          DEFAULT NULL COMMENT 'AI 推荐理由',
+    tips                TEXT          DEFAULT NULL COMMENT '贴心提示，JSON 数组',
+    status              TINYINT       NOT NULL DEFAULT 0 COMMENT '状态：0-计划中，1-已完成，2-已取消',
+    created_by          BIGINT        DEFAULT NULL COMMENT '创建人用户 ID',
+    created_at          DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    is_deleted          TINYINT(1)    NOT NULL DEFAULT 0 COMMENT '软删除：0-未删除，1-已删除',
+    deleted_at          DATETIME      DEFAULT NULL,
+    INDEX idx_group_status (group_id, status),
+    INDEX idx_group_date (group_id, plan_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='约会计划';
+
+CREATE TABLE IF NOT EXISTS wishlist_items (
+    id                BIGINT AUTO_INCREMENT PRIMARY KEY,
+    group_id          BIGINT       NOT NULL COMMENT '所属情侣组 ID',
+    title             VARCHAR(255) NOT NULL COMMENT '心愿标题',
+    category          VARCHAR(32)  DEFAULT NULL COMMENT '分类：travel/food/experience/growth/memory',
+    icon              VARCHAR(32)  DEFAULT NULL COMMENT '图标 emoji',
+    description       TEXT         DEFAULT NULL COMMENT '心愿描述',
+    priority          TINYINT      NOT NULL DEFAULT 0 COMMENT '优先级：0-普通，1-高，2-低',
+    target_value      INT          NOT NULL DEFAULT 1 COMMENT '目标值',
+    current_value     INT          NOT NULL DEFAULT 0 COMMENT '当前进度值',
+    unit              VARCHAR(32)  DEFAULT NULL COMMENT '单位',
+    target_date       DATE         DEFAULT NULL COMMENT '期望完成日期（前端 deadline）',
+    need_both_confirm TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '是否需要双方确认：0-否，1-是',
+    status            TINYINT      NOT NULL DEFAULT 0 COMMENT '状态：0-未完成，1-已完成',
+    achieved_at       DATETIME     DEFAULT NULL COMMENT '达成时间',
+    achieved_note     TEXT         DEFAULT NULL COMMENT '达成备注',
+    created_by        BIGINT       DEFAULT NULL COMMENT '创建人用户 ID',
+    created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    is_deleted        TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '软删除：0-未删除，1-已删除',
+    deleted_at        DATETIME     DEFAULT NULL,
+    INDEX idx_group_status (group_id, status),
+    INDEX idx_group_target_date (group_id, target_date),
+    INDEX idx_group_category (group_id, category)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='心愿清单';

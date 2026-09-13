@@ -43,6 +43,16 @@
             :placeholder="form.email ? '当前：' + form.email : '请输入邮箱'"
             :rules="[{ pattern: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/, message: '请输入正确的邮箱' }]"
           />
+          <!-- 性别 -->
+          <van-cell title="性别" center>
+            <template #value>
+              <van-radio-group v-model="form.gender" direction="horizontal">
+                <van-radio :name="1">男</van-radio>
+                <van-radio :name="2">女</van-radio>
+                <van-radio :name="0">保密</van-radio>
+              </van-radio-group>
+            </template>
+          </van-cell>
         </van-cell-group>
 
         <!-- 修改密码区域 -->
@@ -127,7 +137,9 @@ const form = reactive({
   nickname: '',
   phone: '',
   email: '',
-  avatarUrl: ''
+  avatarUrl: '',
+  // 性别：0-保密，1-男，2-女；未设置时默认 0
+  gender: 0
 })
 
 const passwordForm = reactive({
@@ -143,6 +155,8 @@ onMounted(async () => {
     form.phone = data.phone || ''
     form.email = data.email || ''
     form.avatarUrl = data.avatarUrl || ''
+    // 后端未返回或为 null/undefined 时，使用 0（保密）；已设置则保留 1/2
+    form.gender = (data.gender === 1 || data.gender === 2) ? data.gender : 0
   } catch (error) {
     showToast('加载用户信息失败')
   }
@@ -186,7 +200,8 @@ async function onSubmit() {
     const profileData: any = {
       nickname: form.nickname,
       phone: form.phone,
-      email: form.email
+      email: form.email,
+      gender: form.gender
     }
     if (form.avatarUrl && form.avatarUrl.startsWith('data:')) {
       profileData.avatar = form.avatarUrl // base64 传给后端处理

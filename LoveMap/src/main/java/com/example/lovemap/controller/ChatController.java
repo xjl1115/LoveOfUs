@@ -3,7 +3,9 @@ package com.example.lovemap.controller;
 import com.example.lovemap.chat.ChatSessionRegistry;
 import com.example.lovemap.common.PageResult;
 import com.example.lovemap.common.Result;
+import com.example.lovemap.mapper.UserMapper;
 import com.example.lovemap.model.dto.ChatPresenceDTO;
+import com.example.lovemap.model.entity.User;
 import com.example.lovemap.model.vo.ChatMessageVO;
 import com.example.lovemap.service.ChatService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -32,6 +34,7 @@ import java.util.List;
 public class ChatController {
 
     private final ChatService chatService;
+    private final UserMapper userMapper;
     private final ChatSessionRegistry chatSessionRegistry;
 
     @GetMapping("/history")
@@ -80,6 +83,12 @@ public class ChatController {
     public Result<OnlineStatusVO> onlineStatus(@RequestAttribute("userId") Integer userId) {
         OnlineStatusVO vo = new OnlineStatusVO();
         vo.setOnlineCount(chatSessionRegistry.onlineCount());
+        // 兼容 partner 对象 / partnerId 旧字段
+        User user = userMapper.selectById(userId);
+        Long partnerId = user == null ? null : user.getPartnerId();
+        vo.setPartnerId(partnerId == null ? null : partnerId.intValue());
+        vo.setPartnerOnline(partnerId != null
+                && chatSessionRegistry.isOnline(partnerId.intValue()));
         return Result.success(vo);
     }
 
@@ -114,6 +123,10 @@ public class ChatController {
     @Getter
     public static class OnlineStatusVO {
         private int onlineCount;
+        /** 伴侣用户 ID（未绑定时为 null） */
+        private Integer partnerId;
+        /** 伴侣当前是否在线（基于聊天 WS 会话注册表） */
+        private boolean partnerOnline;
 
     }
 }

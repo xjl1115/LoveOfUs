@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.lovemap.mapper.WishlistItemMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.lovemap.model.entity.WishlistItem">
+        <id column="id" property="id"/>
+        <result column="group_id" property="groupId"/>
+        <result column="title" property="title"/>
+        <result column="category" property="category"/>
+        <result column="icon" property="icon"/>
+        <result column="description" property="description"/>
+        <result column="priority" property="priority"/>
+        <result column="target_value" property="targetValue"/>
+        <result column="current_value" property="currentValue"/>
+        <result column="unit" property="unit"/>
+        <result column="target_date" property="targetDate"/>
+        <result column="need_both_confirm" property="needBothConfirm"/>
+        <result column="status" property="status"/>
+        <result column="achieved_at" property="achievedAt"/>
+        <result column="achieved_note" property="achievedNote"/>
+        <result column="achieved_photo_url" property="achievedPhotoUrl"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="is_deleted" property="isDeleted"/>
+        <result column="deleted_at" property="deletedAt"/>
+    </resultMap>
+
+    <sql id="BaseColumns">
+        id, group_id, title, category, icon, description, priority,
+        target_value, current_value, unit, target_date, need_both_confirm,
+        status, achieved_at, achieved_note, achieved_photo_url,
+        created_by, created_at, updated_at, is_deleted, deleted_at
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO wishlist_items (group_id, title, category, icon, description, priority,
+                                    target_value, current_value, unit, target_date, need_both_confirm,
+                                    status, created_by, created_at, updated_at, is_deleted, deleted_at)
+        VALUES (#{groupId}, #{title}, #{category}, #{icon}, #{description}, #{priority},
+                #{targetValue}, #{currentValue}, #{unit}, #{targetDate}, #{needBothConfirm},
+                #{status}, #{createdBy}, NOW(), NOW(), 0, NULL)
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/> FROM wishlist_items
+        WHERE id = #{id} AND is_deleted = 0
+    </select>
+
+    <!-- 归属范围：情侣组数据，或未绑定情侣时按创建人归属的个人数据 -->
+    <sql id="GroupOrUserScope">
+        (group_id = #{groupId} OR (group_id IS NULL AND created_by = #{userId}))
+    </sql>
+
+    <select id="selectByIdAndGroupOrUser" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/> FROM wishlist_items
+        WHERE id = #{id} AND is_deleted = 0
+          AND <include refid="GroupOrUserScope"/>
+    </select>
+
+    <select id="selectByGroupOrUser" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/> FROM wishlist_items
+        WHERE is_deleted = 0
+          AND <include refid="GroupOrUserScope"/>
+        ORDER BY status ASC, priority ASC, target_date ASC, created_at DESC
+    </select>
+
+    <update id="update">
+        UPDATE wishlist_items
+        SET title = #{item.title},
+            category = #{item.category},
+            icon = #{item.icon},
+            description = #{item.description},
+            priority = #{item.priority},
+            target_value = #{item.targetValue},
+            current_value = #{item.currentValue},
+            unit = #{item.unit},
+            target_date = #{item.targetDate},
+            need_both_confirm = #{item.needBothConfirm},
+            status = #{item.status},
+            achieved_at = #{item.achievedAt},
+            achieved_note = #{item.achievedNote},
+            achieved_photo_url = #{item.achievedPhotoUrl},
+            updated_at = NOW()
+        WHERE id = #{item.id} AND is_deleted = 0
+          AND (group_id = #{item.groupId} OR (group_id IS NULL AND created_by = #{userId}))
+    </update>
+
+    <update id="updateStatus">
+        UPDATE wishlist_items
+        SET status = #{status},
+            updated_at = NOW()
+        WHERE id = #{id} AND is_deleted = 0
+          AND (group_id = #{groupId} OR (group_id IS NULL AND created_by = #{userId}))
+    </update>
+
+    <update id="adjustProgress">
+        UPDATE wishlist_items
+        SET current_value = LEAST(GREATEST(current_value + #{delta}, 0), target_value),
+            updated_at = NOW()
+        WHERE id = #{id} AND is_deleted = 0
+          AND (group_id = #{groupId} OR (group_id IS NULL AND created_by = #{userId}))
+    </update>
+
+    <update id="softDelete">
+        UPDATE wishlist_items
+        SET is_deleted = 1,
+            deleted_at = NOW(),
+            updated_at = NOW()
+        WHERE id = #{id} AND is_deleted = 0
+          AND (group_id = #{groupId} OR (group_id IS NULL AND created_by = #{userId}))
+    </update>
+
+</mapper>

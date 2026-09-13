@@ -80,6 +80,23 @@ export interface ChatRequest {
   message: string
 }
 
+/**
+ * SSE done 帧里可选携带的"智能动作"（P1-5 改动）
+ * 后端可在 done 帧推一个 action，前端按需展示 / 跳转：
+ *   navigate - 自动跳转（如 AI 推荐约会 → 跳转 /date-plan）
+ *   card     - 浮一张可点击的快捷卡片
+ */
+export interface ChatAction {
+  type: 'navigate' | 'card'
+  url?: string
+  title?: string
+  subtitle?: string
+  ctaText?: string
+  ctaUrl?: string
+  /** 跳转/展示前的延迟毫秒，让气泡先渲染出来 */
+  delayMs?: number
+}
+
 /** 非流式响应 data */
 export interface ChatResponse {
   sessionId: string
@@ -225,7 +242,7 @@ export function chatStream(
   opts: ChatStreamOptions | null,
   onChunk: (text: string) => void,
   onTool: ((toolName: string, summary?: string) => void) | null,
-  onDone: (images: ChatImageItem[]) => void,
+  onDone: (images: ChatImageItem[], action?: ChatAction) => void,
   onError: (err: Error) => void
 ): () => void {
   const userStore = useUserStore()
@@ -251,7 +268,9 @@ export function chatStream(
           onTool?.(payload.name || '工具', payload.summary)
         } else if (event.event === 'done') {
           const images = Array.isArray(payload.images) ? (payload.images as ChatImageItem[]) : []
-          onDone(images)
+          // 约定：done 帧可携带 action（智能跳转 / 卡片提示）；无 action 时原行为不变
+          const action = payload.action as ChatAction | undefined
+          onDone(images, action)
         } else if (event.event === 'error') {
           onError(new Error(payload.message || 'AI 服务异常'))
         }

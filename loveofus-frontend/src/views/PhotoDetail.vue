@@ -303,8 +303,10 @@ function onDelete() {
       await deletePhoto(photo.value!.id)
       showToast('删除成功')
       router.back()
-    } catch {
-      showToast('删除失败')
+    } catch (e: any) {
+      // 拦截器已经弹过一条后端 message（如「只能删除自己的照片」），这里不再重复 toast，
+      // 仅 dev 模式留个日志便于排查
+      if (import.meta.env.DEV) console.warn('[PhotoDetail] deletePhoto failed', e)
     }
   })
 }

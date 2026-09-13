@@ -1,5 +1,7 @@
 package com.example.lovemap.config;
 
+import com.example.lovemap.common.constant.AnniversaryConstant;
+import com.example.lovemap.common.constant.NotificationConstant;
 import com.example.lovemap.common.constant.UserConstant;
 import com.example.lovemap.mapper.AnniversaryMapper;
 import com.example.lovemap.mapper.UserMapper;
@@ -11,6 +13,8 @@ import com.example.lovemap.service.NotificationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -18,6 +22,7 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 纪念日提醒定时任务
@@ -36,9 +41,9 @@ public class AnniversaryReminderTask {
     private final ObjectMapper objectMapper;
 
     /**
-     * 每天早上9点执行，检查未来7天内的纪念日
+     * 每天凌晨0点执行，检查未来7天内的纪念日
      */
-    @Scheduled(cron = "0 0 9 * * ?")
+    @Scheduled(cron = "0 0 0 * * ?")
     public void checkAnniversaryReminder() {
         log.info("开始执行纪念日提醒检查");
         
@@ -78,8 +83,44 @@ public class AnniversaryReminderTask {
             }
             
             log.info("纪念日提醒检查完成");
+            // 整轮跑完才标记当天已执行：中途失败（如数据库不可用）不标记，重启后仍可补跑
+            markReminderRunToday();
         } catch (Exception e) {
             log.error("纪念日提醒检查失败", e);
+        }
+    }
+
+    /**
+     * 启动补跑：若当天 0 点的提醒检查没有执行过（例如 0 点服务掉线），启动后立即补一次。
+     * <p>
+     * 通过 Redis 标记 {@link AnniversaryConstant#REMIND_LAST_RUN_KEY} 保证每个自然日最多执行一次：
+     * 当天已执行过则跳过，避免每次重启重复给用户发提醒。
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    public void catchUpMissedReminder() {
+        String today = LocalDate.now().toString();
+        try {
+            String lastRun = redisTemplate.opsForValue().get(AnniversaryConstant.REMIND_LAST_RUN_KEY);
+            if (today.equals(lastRun)) {
+                log.info("纪念日提醒今日已执行，跳过启动补跑");
+                return;
+            }
+            log.info("纪念日提醒今日未执行（上次: {}），启动补跑", lastRun);
+            checkAnniversaryReminder();
+        } catch (Exception e) {
+            log.error("纪念日提醒启动补跑失败", e);
+        }
+    }
+
+    /**
+     * 写入"提醒检查已执行"标记（保留 7 天，足够覆盖任何跨天判断）
+     */
+    private void markReminderRunToday() {
+        try {
+            redisTemplate.opsForValue().set(AnniversaryConstant.REMIND_LAST_RUN_KEY,
+                    LocalDate.now().toString(), 7, TimeUnit.DAYS);
+        } catch (Exception e) {
+            log.warn("写入纪念日提醒执行标记失败", e);
         }
     }
 
@@ -142,7 +183,9 @@ public class AnniversaryReminderTask {
             );
             
             // 发送 SSE 通知并存入数据库（user_id 为用户本人 ID）
-            notificationService.createAndPushNotification(user.getId().intValue(), notificationText);
+            // type=纪念日提醒 + businessId=纪念日ID，前端据此跳转对应纪念日详情
+            notificationService.createAndPushNotification(user.getId().intValue(), notificationText,
+                    NotificationConstant.TYPE_ANNIVERSARY, anniversary.getId());
             
             log.info("已向用户 {} 发送纪念日提醒: {}, 距离{}天", user.getId(), anniversaryName, daysUntil);
         } catch (Exception e) {

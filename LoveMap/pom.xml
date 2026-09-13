@@ -181,11 +181,15 @@
         <dependency>
             <groupId>dev.langchain4j</groupId>
             <artifactId>langchain4j-community-dashscope</artifactId>
-            <version>1.18.0-beta28</version>
+            <version>1.19.0-beta29</version>
         </dependency>
-        <!-- Tool Calling 用 core 自带的 @Tool + ToolSpecification 即可；
-             1.18 中没有独立的 DefaultToolExecutor 工件，本项目自实现 SimpleToolExecutor。 -->
-        <!-- WebSocket（聊天功能） -->
+        <!-- 显式锁定 dashscope SDK 版本，覆盖 langchain4j-community-dashscope 传递的旧版本。
+             2.22.31 修复了 qwen3.x 模型在 qwen3.7-max 上的 "url error, please check url" 问题。 -->
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>dashscope-sdk-java</artifactId>
+            <version>2.22.31</version>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-websocket</artifactId>

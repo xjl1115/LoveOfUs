@@ -13,6 +13,9 @@
         <result column="is_bound" property="isBound"/>
         <result column="group_id" property="groupId"/>
         <result column="relationship_start" property="relationshipStart"/>
+        <result column="gender" property="gender"/>
+        <result column="vip_level" property="vipLevel"/>
+        <result column="vip_expire_at" property="vipExpireAt"/>
         <result column="created_at" property="createdAt"/>
         <result column="updated_at" property="updatedAt"/>
     </resultMap>
@@ -21,12 +24,14 @@
         id, nickname, avatar_url, phone, email, password,
         partner_id, is_bound, group_id,
         relationship_start,
+        gender,
+        vip_level, vip_expire_at,
         created_at, updated_at
     </sql>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO user (nickname, avatar_url, phone, email, password, is_bound, created_at, updated_at)
-        VALUES (#{nickname}, #{avatarUrl}, #{phone}, #{email}, #{password}, #{isBound}, NOW(), NOW())
+        INSERT INTO user (nickname, avatar_url, phone, email, password, is_bound, gender, created_at, updated_at)
+        VALUES (#{nickname}, #{avatarUrl}, #{phone}, #{email}, #{password}, #{isBound}, #{gender}, NOW(), NOW())
     </insert>
 
     <select id="findByEmail" resultMap="BaseResultMap">
@@ -75,8 +80,17 @@
             <if test="email != null">email = #{email},</if>
             <if test="avatarUrl != null">avatar_url = #{avatarUrl},</if>
             <if test="password != null">password = #{password},</if>
+            <if test="gender != null">gender = #{gender},</if>
             updated_at = NOW()
         </set>
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateVip">
+        UPDATE user
+        SET vip_level = #{vipLevel},
+            vip_expire_at = #{vipExpireAt},
+            updated_at = NOW()
         WHERE id = #{id}
     </update>
 

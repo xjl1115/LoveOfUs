@@ -79,6 +79,62 @@ const routes = [
     name: 'AIHistoryDetail',
     component: () => import('@/views/AIHistoryDetail.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/date-plan',
+    name: 'DatePlan',
+    component: () => import('@/views/DatePlan.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/wishlist',
+    name: 'Wishlist',
+    component: () => import('@/views/Wishlist.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/love-hub',
+    name: 'LoveHub',
+    component: () => import('@/views/LoveHub.vue'),
+    meta: { requiresAuth: true }
+  },
+  // ============ VIP 会员 ============
+  {
+    path: '/vip',
+    name: 'VipDetail',
+    component: () => import('@/views/VipDetail.vue'),
+    meta: { requiresAuth: true, title: 'VIP 会员' }
+  },
+  {
+    path: '/vip/order',
+    name: 'VipOrder',
+    component: () => import('@/views/VipOrder.vue'),
+    meta: { requiresAuth: true, title: '确认订单' }
+  },
+  // ============ AI 化妆建议 ============
+  {
+    path: '/makeover',
+    name: 'MakeoverHome',
+    component: () => import('@/views/MakeoverHome.vue'),
+    meta: { requiresAuth: true, title: 'AI 化妆建议' }
+  },
+  {
+    path: '/makeover/progress/:recordId',
+    name: 'MakeoverProgress',
+    component: () => import('@/views/MakeoverProgress.vue'),
+    meta: { requiresAuth: true, title: '分析中' }
+  },
+  {
+    path: '/makeover/result/:recordId',
+    name: 'MakeoverResult',
+    component: () => import('@/views/MakeoverResult.vue'),
+    meta: { requiresAuth: true, title: '改造建议' }
+  },
+  {
+    path: '/makeover/history',
+    name: 'MakeoverHistory',
+    component: () => import('@/views/MakeoverHistory.vue'),
+    meta: { requiresAuth: true, title: '历史记录' }
   }
 ]
 

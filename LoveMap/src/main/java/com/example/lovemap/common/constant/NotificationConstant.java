@@ -20,6 +20,12 @@ public class NotificationConstant {
      */
     public static final String NOTIFICATION_UNREAD_COUNT_PREFIX = "notification:unread:count:";
 
+    /** 通知类型：系统通知 */
+    public static final int TYPE_SYSTEM = 1;
+
+    /** 通知类型：纪念日提醒 */
+    public static final int TYPE_ANNIVERSARY = 2;
+
     private NotificationConstant() {
         // 防止实例化
     }

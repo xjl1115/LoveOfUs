@@ -54,9 +54,10 @@ public class UserProfileTool {
     // ==================== 查询 ====================
 
     /**
-     * 获取当前用户的昵称、手机号（脱敏）、邮箱
+     * 获取当前用户的昵称、手机号（脱敏）、邮箱、性别
      */
-    @Tool("获取当前登录用户的昵称、手机号（已脱敏）和邮箱。")
+    @Tool("获取当前登录用户的昵称、手机号（已脱敏）、邮箱和性别（gender:0-未知/保密 1-男 2-女，genderLabel:男/女/保密）。"
+            + "称呼用户或回应涉及性别的问题前必须先调用本工具确认用户的性别。")
     public Map<String, Object> getMyProfile() {
         Long userId = AiUserContext.requireUserId();
         log.info("[AI-TOOL] getMyProfile userId={}", userId);
@@ -71,6 +72,8 @@ public class UserProfileTool {
             result.put("phone", maskPhone(user.getPhone()));
             result.put("phoneMasked", true);
             result.put("email", user.getEmail());
+            result.put("gender", user.getGender());
+            result.put("genderLabel", genderLabel(user.getGender()));
             return result;
         } catch (Exception e) {
             log.error("[AI-TOOL] getMyProfile 失败", e);
@@ -364,6 +367,16 @@ public class UserProfileTool {
             return phone;
         }
         return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 4);
+    }
+
+    /** 性别代码 -> 可读标签：1-男，2-女，其它（含 null/0）返回"未知" */
+    private static String genderLabel(Integer gender) {
+        if (gender == null) return "未知";
+        return switch (gender) {
+            case 1 -> "男";
+            case 2 -> "女";
+            default -> "未知";
+        };
     }
 
     /** 待修改的资料（含过期机制） */

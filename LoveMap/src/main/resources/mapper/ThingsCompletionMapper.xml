@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.lovemap.mapper.ThingsCompletionMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.lovemap.model.entity.ThingsCompletion">
+        <id column="id" property="id"/>
+        <result column="thing_id" property="thingId"/>
+        <result column="group_id" property="groupId"/>
+        <result column="completed_by" property="completedBy"/>
+        <result column="completed_at" property="completedAt"/>
+        <result column="note" property="note"/>
+    </resultMap>
+
+    <sql id="BaseColumns">
+        id, thing_id, group_id, completed_by, completed_at, note
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO things_completion (thing_id, group_id, completed_by, completed_at, note)
+        VALUES (#{thingId}, #{groupId}, #{completedBy}, #{completedAt}, #{note})
+    </insert>
+
+    <select id="selectByThingAndGroupOrUser" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/> FROM things_completion
+        WHERE thing_id = #{thingId}
+          AND (group_id = #{groupId} OR (group_id IS NULL AND completed_by = #{userId}))
+        LIMIT 1
+    </select>
+
+    <select id="selectByGroupOrUser" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/> FROM things_completion
+        WHERE group_id = #{groupId} OR (group_id IS NULL AND completed_by = #{userId})
+        ORDER BY completed_at DESC
+    </select>
+
+    <select id="countAchievedByGroupOrUser" resultType="long">
+        SELECT COUNT(*) FROM things_completion
+        WHERE group_id = #{groupId} OR (group_id IS NULL AND completed_by = #{userId})
+    </select>
+
+    <delete id="deleteByThingAndGroupOrUser">
+        DELETE FROM things_completion
+        WHERE thing_id = #{thingId}
+          AND (group_id = #{groupId} OR (group_id IS NULL AND completed_by = #{userId}))
+    </delete>
+
+    <delete id="deleteByGroupId">
+        DELETE FROM things_completion
+        WHERE group_id = #{groupId}
+    </delete>
+
+</mapper>

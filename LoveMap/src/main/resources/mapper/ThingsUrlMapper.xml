@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.lovemap.mapper.ThingsUrlMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.lovemap.model.entity.ThingsUrl">
+        <id column="id" property="id"/>
+        <result column="url" property="url"/>
+    </resultMap>
+
+    <sql id="BaseColumns">
+        id, url
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO things_url (url) VALUES (#{url})
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/> FROM things_url
+        WHERE id = #{id}
+    </select>
+
+    <delete id="deleteById">
+        DELETE FROM things_url WHERE id = #{id}
+    </delete>
+
+</mapper>

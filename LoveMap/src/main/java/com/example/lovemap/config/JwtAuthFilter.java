@@ -64,6 +64,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             "/api/swagger-ui/**",
             "/api/v3/api-docs/**",
             "/api/error",
+            // VIP 顾问开通接口：无 JWT，由 VipController 校验 X-Vip-Admin-Token
+            "/api/vip/admin/**",
             // WebSocket 握手鉴权由 ChatHandshakeInterceptor 自行处理
             "/api/ws/**"
     );

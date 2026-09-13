@@ -26,6 +26,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,9 +61,11 @@ public class AiChatService {
     private final String systemPrompt;
 
     /** Tool loop 最多迭代次数（防止模型进入死循环） */
-    private static final int MAX_TOOL_ITERATIONS = 5;
+    /** 工具循环最大迭代次数。注：完成"创建纪念日"等分阶段引导流程至少需要 8 次迭代（5 个 collect + check + prepare + confirm），
+     *  原值 5 会在收齐字段后被强制中断，导致流程无法闭环。 */
+    private static final int MAX_TOOL_ITERATIONS = 12;
 
-    public AiChatService(ObjectProvider<ChatModel> chatModelProvider,
+    public AiChatService(@Qualifier("dashscopeChatModel") ObjectProvider<ChatModel> chatModelProvider,
                           ObjectProvider<StreamingChatModel> streamingChatModelProvider,
                           @Qualifier("aiToolSpecifications") List<ToolSpecification> toolSpecifications,
                           @Qualifier("aiToolBeanMap") Map<String, Object> toolBeanMap,
@@ -140,8 +143,9 @@ public class AiChatService {
         }
         String userText = safeText(request.getMessage());
         Long userId = AiUserContext.peekUserId();
-        log.info("AI chat (stream) session={}, text-len={}",
-                request.getSessionId(), userText.length());
+        log.info("AI chat (stream) session={}, text-len={}, modelBean={}",
+                request.getSessionId(), userText.length(),
+                streamingChatModel == null ? "<null>" : streamingChatModel.getClass().getName());
 
         // 先把 user 消息落库（长期记忆 MySQL）
         persistMessage(userId, request.getSessionId(), "user", userText, null);
@@ -176,7 +180,8 @@ public class AiChatService {
 
         streamWithTools(streamingChatModel, messages, params, executor,
                 userId, request.getSessionId(), userText,
-                onChunk, onComplete, onError, 0, null);
+                onChunk, onComplete, onError, 0, null,
+                new ArrayList<>());
     }
 
     /**
@@ -198,7 +203,8 @@ public class AiChatService {
                                   BiConsumer<String, List<Map<String, Object>>> onComplete,
                                   Consumer<Throwable> onError,
                                   int iteration,
-                                  List<Map<String, Object>> imagesFromParent) {
+                                  List<Map<String, Object>> imagesFromParent,
+                                  List<String> calledToolNames) {
         if (iteration >= MAX_TOOL_ITERATIONS) {
             log.warn("[AI-STREAM] tool loop 超过最大迭代次数，强制结束");
             onComplete.accept("", imagesFromParent == null ? List.of() : imagesFromParent);
@@ -226,7 +232,33 @@ public class AiChatService {
 
             @Override
             public void onCompleteResponse(dev.langchain4j.model.chat.response.ChatResponse response) {
+                // 防御：DashScope 在某些场景（url error、限流、超时取消）会回调
+                // onCompleteResponse 但 response==null。旧代码直接 response.aiMessage()
+                // 会 NPE，把真正的异常吞掉，让排查无法继续。这里先记录并优雅退出。
+                if (response == null) {
+                    log.warn("[AI-STREAM] onCompleteResponse 收到 null response（iter={}）— DashScope "
+                            + "服务端可能已断开 / 上游已抛 ApiException，结束当前流。iteration={}, "
+                            + "fullText.length={}, hasToolRequests={}",
+                            iteration, fullText.length(), hasToolRequests[0]);
+                    try {
+                        onComplete.accept(fullText.toString(),
+                                new ArrayList<>(accumulatedImages));
+                    } catch (Exception notifyErr) {
+                        log.warn("[AI-STREAM] onComplete.accept 通知失败（response==null）: {}", notifyErr.toString());
+                    }
+                    return;
+                }
                 AiMessage aiMsg = response.aiMessage();
+                if (aiMsg == null) {
+                    log.warn("[AI-STREAM] response.aiMessage() 为 null（iter={}）", iteration);
+                    try {
+                        onComplete.accept(fullText.toString(),
+                                new ArrayList<>(accumulatedImages));
+                    } catch (Exception notifyErr) {
+                        log.warn("[AI-STREAM] onComplete.accept 通知失败（aiMsg==null）: {}", notifyErr.toString());
+                    }
+                    return;
+                }
                 if (aiMsg.hasToolExecutionRequests()) {
                     log.info("[AI-STREAM] LLM 触发工具调用 iter={} count={}", iteration, aiMsg.toolExecutionRequests().size());
                     for (ToolExecutionRequest ter : aiMsg.toolExecutionRequests()) {
@@ -241,6 +273,7 @@ public class AiChatService {
                         return;
                     }
                     for (ToolExecutionRequest ter : aiMsg.toolExecutionRequests()) {
+                        calledToolNames.add(ter.name());
                         // 工具回调在 DashScope 的 OkHttp SSE 线程里执行，原 ThreadLocal 已不可用；
                         // 这里用 lambda 闭包持有的 userId 重新绑定上下文
                         AiUserContext.set(userId, userId);
@@ -260,7 +293,7 @@ public class AiChatService {
                     streamWithTools(model, messages, params, executor,
                             userId, sessionId, userText,
                             onChunk, onComplete, onError, iteration + 1,
-                            accumulatedImages);
+                            accumulatedImages, calledToolNames);
                 } else {
                     String finalText = fullText.toString();
                     // 流式结束后落 AI 消息 + 自动标题
@@ -270,6 +303,8 @@ public class AiChatService {
                         shortTermMemory.appendAiMessage(userId, sessionId, finalText);
                     }
                     autoGenerateTitle(userId, sessionId, userText);
+                    // 幻觉检测：成功词 + 未调 confirm* → WARN 日志
+                    detectFabricatedSuccess(finalText, calledToolNames, userId, sessionId, "stream");
                     try { onComplete.accept(finalText, accumulatedImages); }
                     catch (Exception e) { log.warn("onComplete err", e); }
                 }
@@ -277,6 +312,9 @@ public class AiChatService {
 
             @Override
             public void onError(Throwable error) {
+                // 把 DashScope ApiException 的 requestId / code / statusCode 完整透出，
+                // 替前端保留诊断上下文（旧版本只 dump toString，关键字段全丢）。
+                logDashScopeError("[AI-STREAM] onError (iter={})", error, iteration);
                 try { onError.accept(error); } catch (Exception e) { log.warn("onError err", e); }
             }
         };
@@ -311,6 +349,10 @@ public class AiChatService {
                 .toolSpecifications(toolSpecs == null ? List.of() : toolSpecs)
                 .build();
 
+        // 累计本轮所有 tool 调用名（含 prepare / confirm / 普通查询），
+        // 用于在 AI 返回最终文本前做"声称成功但未真正写入"的幻觉检测。
+        List<String> calledToolNames = new ArrayList<>();
+
         for (int i = 0; i < MAX_TOOL_ITERATIONS; i++) {
             dev.langchain4j.model.chat.request.ChatRequest req =
                     dev.langchain4j.model.chat.request.ChatRequest.builder()
@@ -320,7 +362,10 @@ public class AiChatService {
             dev.langchain4j.model.chat.response.ChatResponse resp = chatModel.chat(req);
             AiMessage aiMsg = resp.aiMessage();
             if (!aiMsg.hasToolExecutionRequests()) {
-                return aiMsg.text() == null ? "" : aiMsg.text();
+                String finalText = aiMsg.text() == null ? "" : aiMsg.text();
+                // 幻觉检测：成功词 + 未调 confirm* → WARN 日志
+                detectFabricatedSuccess(finalText, calledToolNames, userId, sessionId, "chat");
+                return finalText;
             }
             // 有工具调用：拼回 messages，执行工具，结果回灌
             messages.add(aiMsg);
@@ -330,6 +375,7 @@ public class AiChatService {
             }
             Long ctxUserId = AiUserContext.peekUserId();
             for (ToolExecutionRequest ter : aiMsg.toolExecutionRequests()) {
+                calledToolNames.add(ter.name());
                 // 防御性：如果 ThreadLocal 已被清空，回填（从 chat() 入口 peek 出来的 userId）
                 AiUserContext.set(ctxUserId != null ? ctxUserId : 0L, ctxUserId != null ? ctxUserId : 0L);
                 Object result;
@@ -404,6 +450,116 @@ public class AiChatService {
         }
     }
 
+    // ==================== 幻觉检测埋点 ====================
+
+    /**
+     * 触发"声称成功但未真正写入"的幻觉检测。
+     * <p>
+     * 业务背景：很多 AI Tool（特别是二次确认类）的 prepare 阶段返回 status=CONFIRM_REQUIRED，
+     * 但 LLM（qwen3.7-flash 等小模型）有时会跳过 confirm 工具，直接告诉用户"已修改/已关闭"，
+     * 造成用户感知与实际状态不一致。本方法在 AI 文本即将返回给前端前做一次校验：
+     * <ul>
+     *   <li>如果文本中出现"成功类关键词"，但本轮对话里**没有调用过任何 confirm* 工具**，
+     *       打 WARN 日志（事件名 AI-FABRICATED-SUCCESS），便于后续定位与统计。</li>
+     *   <li>如果调用过至少一个 confirm* 工具，认为是合法成功，**不打**日志（避免噪音）。</li>
+     *   <li>如果文本为空 / 不含成功关键词，**不打**日志。</li>
+     * </ul>
+     *
+     * @param finalText   AI 最终返回给用户的文本（可能为空）
+     * @param toolNames   本轮会话里所有被调用过的工具名（含 prepare / confirm / 普通查询）
+     * @param userId      当前用户 ID（用于日志关联）
+     * @param sessionId   当前会话 ID（用于日志关联）
+     * @param source      调用来源标识，例如 "chat" / "stream"，便于区分链路
+     */
+    private void detectFabricatedSuccess(String finalText,
+                                          List<String> toolNames,
+                                          Long userId,
+                                          String sessionId,
+                                          String source) {
+        if (finalText == null || finalText.isBlank()) return;
+        if (toolNames == null) toolNames = Collections.emptyList();
+
+        // 1. 文本里是否包含"成功类"关键词
+        boolean hasSuccessKeyword = FABRICATED_SUCCESS_KEYWORDS.stream()
+                .anyMatch(kw -> finalText.contains(kw));
+        if (!hasSuccessKeyword) return;
+
+        // 2. 是否调用过至少一个 confirm* 工具（白名单）
+        boolean calledAnyConfirm = toolNames.stream().anyMatch(n -> n != null && n.startsWith("confirm"));
+        if (calledAnyConfirm) return; // 合法成功，不告警
+
+        // 3. 命中：日志告警
+        log.warn(
+                "[AI-FABRICATED-SUCCESS] source={} userId={} sessionId={} tools={} textPreview={}",
+                source,
+                userId,
+                sessionId,
+                toolNames,
+                finalText.length() > 120 ? finalText.substring(0, 120) + "..." : finalText
+        );
+    }
+
+    /**
+     * "声称成功"的关键词集合。匹配规则：任一关键词作为子串出现在 AI 文本中即视为"声称成功"。
+     * <p>
+     * 调整原则：
+     * <ul>
+     *   <li>短语要够具体，避免"好的/收到/明白"这种通用词单独命中；</li>
+     *   <li>覆盖口语化表达（"搞定/办好了/已经处理了"）和小模型常见幻觉；</li>
+     *   <li>覆盖"隐含成功"的承诺句式（"以后就不会再…/立即生效/已更新到"）；</li>
+     *   <li>避免否定句误报：所有关键词都表示**正面完成**，不含"还没/暂时没"等修饰。</li>
+     * </ul>
+     */
+    private static final List<String> FABRICATED_SUCCESS_KEYWORDS = List.of(
+            // ============ 1. 明确完成态（短词 + 长词） ============
+            "已修改", "已保存", "已关闭", "已开启", "已删除", "已创建", "已加入",
+            "已更新", "已绑定", "已解除", "已发送", "已上传", "已导出", "已建立",
+            "已设置", "已调整", "已切换", "已替换", "已记录", "已登记", "已应用",
+            "已添加", "已移除", "已取消", "已恢复", "已清空", "已重置",
+            "已完成", "已处理", "已操作", "已确认", "已生效", "已同步",
+
+            // ============ 2. 动作完成短语（口语化） ============
+            "设置成功", "关闭成功", "开启成功", "删除成功", "创建成功",
+            "修改成功", "保存成功", "绑定成功", "解除成功", "导出成功", "上传成功",
+            "搞定", "搞定了", "办好了", "处理好了", "处理完毕",
+            "完成了", "完成啦", "弄好了", "改好了", "删掉了", "关掉了", "打开了",
+            "成功了", "成功啦", "弄完啦", "搞定啦",
+            // "已帮您X/已帮你X" 系列：必须带动作动词，避免"好的，已帮您查询"误报
+            "已帮您关", "已帮你关", "已帮您开", "已帮你开",
+            "已帮您删", "已帮你删", "已帮您改",
+            "已经帮您关", "已经帮你关", "已经帮您开", "已经帮你开",
+            "已经帮您删", "已经帮你删", "已经帮您改", "已经帮你改",
+            "已经帮您设置", "已经帮你设置", "已经帮您创建", "已经帮你创建",
+            "已经帮您搞定", "已经帮你搞定", "已经帮您处理", "已经帮你处理",
+            "已经为您关", "已经为你关", "已经为您开", "已经为你开",
+            "已经为您删", "已经为你删", "已经为您改", "已经为你改",
+            "帮您关", "帮你关", "帮您开", "帮你开", "帮您删", "帮你删",
+            "帮您改", "帮你改", "帮您创建", "帮你创建", "帮您设置", "帮你设置",
+            "帮您关掉", "帮你关掉", "帮您开启", "帮你开启", "帮您删除", "帮你删除",
+            "帮您改掉", "帮你改掉", "帮您调整", "帮你调整", "帮您搞定", "帮你搞定",
+
+            // ============ 3. 隐含成功的承诺句式 ============
+            // 高置信度的"完成 + 状态变更"承诺，避开通用否定句（如"今天不会下雨"）
+            "以后就不会再", "以后就不会再收到",
+            "以后不会再收到", "以后都不会再",
+            "以后不打扰您", "以后不打扰你",
+            "不会再打扰您", "不会再打扰你",
+            "立即生效", "马上生效", "立刻生效",
+            "已经更新到", "已经写入", "已经同步到", "已经存储", "已经存入",
+            "已经记到", "已经写入数据库", "已经更新数据库",
+
+            // ============ 4. 通知 / 操作完成 的回执句 ============
+            "已为您关闭", "已为你关闭", "已为您开启", "已为你开启",
+            "已为您删除", "已为你删除", "已为您创建", "已为你创建",
+            "已为您修改", "已为你修改", "已为您设置", "已为你设置",
+            "已为您保存", "已为你保存", "已为您调整", "已为你调整",
+            "已为您绑定", "已为你绑定", "已为您解除", "已为你解除",
+            "已为您导出", "已为你导出", "已为您上传", "已为你上传",
+            "已为您取消", "已为你取消",
+            "已收到您的", "已经收到您的",
+            "按您的要求"
+    );
+
     // ==================== 会话持久化 ====================
 
     private void persistMessage(Long userId, String sessionId, String role, String content, String toolName) {
@@ -444,6 +600,55 @@ public class AiChatService {
             aiSessionService.renameSession(userId.intValue(), sessionId, renameReq);
         } catch (Exception e) {
             log.warn("[AI] 自动生成标题失败", e);
+        }
+    }
+
+    // ==================== 诊断工具 ====================
+
+    /**
+     * 把 DashScope {@code ApiException} 的关键诊断字段（statusCode / code /
+     * requestId / message）通过反射抽出来打到日志里。
+     * <p>
+     * 直接 {@code error.toString()} 会拼成 {@code ApiException: {"statusCode":400,"code":"..."}},
+     * 但多个并发请求日志混在一起时定位不到具体哪一次失败——所以这里额外打印 requestId。
+     * <p>
+     * 该方法只对 {@code com.alibaba.dashscope.exception.ApiException} 起作用，
+     * 其他异常类型 fallback 到普通 ERROR 日志。
+     */
+    private void logDashScopeError(String prefix, Throwable error, Object... args) {
+        Object[] argArr = (args == null || args.length == 0) ? new Object[0] : args;
+        String prefixResolved;
+        try {
+            prefixResolved = (argArr.length == 0) ? prefix : String.format(prefix, argArr);
+        } catch (Exception fmtErr) {
+            // prefix 里的占位符数量与 args 不匹配 → 原样输出
+            prefixResolved = prefix + " (fmt-err: " + fmtErr.getMessage() + ")";
+        }
+        try {
+            Class<?> apiExCls = Class.forName("com.alibaba.dashscope.exception.ApiException");
+            if (apiExCls.isInstance(error)) {
+                String statusCode = readStringAccessor(error, "getStatusCode");
+                String code = readStringAccessor(error, "getCode");
+                String reqId = readStringAccessor(error, "getRequestId");
+                String msg = error.getMessage();
+                log.error("{} statusCode={}, code={}, requestId={}, message={}, type={}",
+                        prefixResolved, statusCode, code, reqId, msg,
+                        error.getClass().getSimpleName(), error);
+                return;
+            }
+        } catch (ClassNotFoundException ignored) {
+            // DashScope SDK 不在 classpath（不应发生），降级
+        }
+        log.error("{} type={}, message={}", prefixResolved,
+                error.getClass().getSimpleName(), error.getMessage(), error);
+    }
+
+    private String readStringAccessor(Object target, String methodName) {
+        try {
+            Object v = target.getClass().getMethod(methodName).invoke(target);
+            return v == null ? "<null>" : v.toString();
+        } catch (Exception e) {
+            return "<unknown>";
         }
     }
 }

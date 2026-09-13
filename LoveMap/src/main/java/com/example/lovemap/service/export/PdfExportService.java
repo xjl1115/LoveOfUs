@@ -53,7 +53,7 @@ public class PdfExportService {
         int downloaded = batchDownloader.batchDownload(ossUrls, downloadDir.toString());
         log.info("PDF导出: 批量下载完成, taskId={}, downloaded={}/{}", taskId, downloaded, ossUrls.size());
 
-        String albumTitle = "LoveMap - 我们的相册";
+        String albumTitle = "LoveOfUs - 我们的相册";
         if (dto.getStartDate() != null && dto.getEndDate() != null) {
             albumTitle += " (" + dto.getStartDate() + " ~ " + dto.getEndDate() + ")";
         }

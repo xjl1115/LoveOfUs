@@ -1,6 +1,7 @@
 package com.example.lovemap.common;
 
 import com.example.lovemap.ai.exception.AiDisabledException;
+import com.example.lovemap.ai.exception.AiErrorMessages;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.BindException;
@@ -114,6 +115,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public Result<Void> handleException(Exception e) {
+        // AI 额度不足：给出明确中文提示，避免把 DashScope 的英文 JSON 原样透给前端
+        if (AiErrorMessages.isQuotaExhausted(e)) {
+            log.warn("AI 额度不足: {}", AiErrorMessages.firstMessage(e));
+            return Result.error(ResultCode.SERVICE_UNAVAILABLE, AiErrorMessages.QUOTA_EXHAUSTED);
+        }
         log.error("系统异常: ", e);
         return Result.error(ResultCode.INTERNAL_SERVER_ERROR);
     }

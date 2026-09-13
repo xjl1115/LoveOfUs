@@ -5,6 +5,7 @@ import com.example.lovemap.model.vo.UserStatsVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -42,6 +43,17 @@ public interface UserMapper {
      * 更新用户信息（昵称、头像、关系开始日期）
      */
     int updateUser(User user);
+
+    /**
+     * 更新用户 VIP 等级与到期时间
+     *
+     * @param id         用户ID
+     * @param vipLevel   VIP 等级
+     * @param vipExpireAt 到期时间，永久卡传 null
+     */
+    int updateVip(@Param("id") Long id,
+                  @Param("vipLevel") Integer vipLevel,
+                  @Param("vipExpireAt") LocalDateTime vipExpireAt);
 
     /**
      * 绑定伴侣：更新 partner_id、group_id、is_bound

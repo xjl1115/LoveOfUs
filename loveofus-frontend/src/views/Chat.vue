@@ -15,6 +15,7 @@ import {
   deleteMessage as apiDeleteMessage,
   deleteMessagesBatch as apiDeleteMessagesBatch,
   recallMessage as apiRecallMessage,
+  fetchOnlineStatus,
   type ChatMessageVO,
   type WsChatMessage
 } from '@/api/chat'
@@ -42,8 +43,22 @@ const currentUserId = computed(() => {
   return id ? Number(id) : 0
 })
 
-// 在线状态：登录中即视为在线（只要 token 有效就显示在线）
-const isOnline = computed(() => !!userStore.token)
+// 在线状态：表示"伴侣是否在线"，由 /chat/online-status 拉取 + SSE partner-online-change 实时刷新
+// 初始 null 表示尚未加载，避免在未确认前误显示"离线"造成误导
+const partnerOnline = ref<boolean | null>(null)
+
+async function refreshPartnerOnline() {
+  try {
+    const data = await fetchOnlineStatus()
+    if (data) {
+      partnerOnline.value = !!data.partnerOnline
+    }
+  } catch (e) {
+    console.warn('[chat] fetchOnlineStatus', e)
+  }
+}
+
+const isOnline = computed(() => partnerOnline.value === true)
 
 // 头像信息（兼容 partner 对象 / partnerId 旧字段）
 const myAvatarUrl = computed(() => userStore.userInfo?.avatarUrl || '')
@@ -450,7 +465,9 @@ function connect() {
           senderId: msg.senderId ?? 0,
           receiverId: msg.receiverId ?? 0,
           content: msg.content ?? '',
+          imageUrl: msg.imageUrl,
           msgType: msg.msgType ?? 1,
+          extraJson: msg.extraJson,
           isRead: msg.isRead ?? 0,
           createdAt: msg.createdAt
         }
@@ -524,7 +541,20 @@ function disconnect() {
 }
 
 let typingTimer: number | null = null
-function onInputChange() {
+// 中文/日文/韩文输入法组合输入状态：IME 选词中不发 TYPING（选词过程不代表"正在打字"）
+let isComposing = false
+const TYPING_THROTTLE_MS = 1500 // 节流从 2000ms 调短到 1500ms，对方更早看到"对方正在输入"
+
+function onCompositionStart() {
+  isComposing = true
+}
+function onCompositionEnd() {
+  isComposing = false
+  // IME 选词结束时立即发一次 TYPING，让对方知道你即将完成输入
+  sendTyping()
+}
+
+function sendTyping() {
   if (!ws.value || ws.value.readyState !== WebSocket.OPEN) return
   if (typingTimer) return
   const payload: WsChatMessage = { type: 'TYPING' }
@@ -533,7 +563,13 @@ function onInputChange() {
   } catch {
     // 连接刚断开时 send 可能抛错，忽略即可（下次输入会重试）
   }
-  typingTimer = window.setTimeout(() => (typingTimer = null), 2000)
+  typingTimer = window.setTimeout(() => (typingTimer = null), TYPING_THROTTLE_MS)
+}
+
+function onInputChange() {
+  // IME 组合过程中不发 TYPING（选词不算"打字中"），由 compositionend 兜底触发
+  if (isComposing) return
+  sendTyping()
 }
 
 function sendMessage() {
@@ -609,6 +645,150 @@ function formatTime(s?: string) {
   return `${d.getMonth() + 1}-${d.getDate()} ${hh}:${mm}`
 }
 
+/**
+ * 香水香调族 → 中文标签（与后端 MakeoverConstant.PERFUME_FAMILY_NAME 对齐；
+ * 风格与 MakeoverResult.vue.PERFUME_FAMILY_LABEL 保持一致——用"xxx调"而非单字）。
+ * <p>
+ * AI 严格按后端 SYSTEM_PROMPT 输出英文字符串（floral/citrus/...），
+ * 卡片只展示给用户看时必须翻译，否则会出现"香水：floral"这种英文直出。
+ */
+const PERFUME_FAMILY_LABEL: Record<string, string> = {
+  floral: '花香调',
+  citrus: '柑橘调',
+  woody: '木质调',
+  oriental: '东方调',
+  fresh: '清新调',
+  gourmand: '美食调',
+  chypre: '西普调'
+}
+function perfumeFamilyLabel(code: string): string {
+  if (!code) return ''
+  return PERFUME_FAMILY_LABEL[code] || code
+}
+
+/**
+ * 从 msgType=5 的 extraJson 中抽取一句简短摘要（场景/妆造关键词），
+ * 让伴侣在聊天流里一眼看到「这次 AI 给的建议主题」。
+ */
+function makeoverHint(msg: ChatMessageVO): string {
+  if (!msg.extraJson) return msg.content || ''
+  try {
+    const data = JSON.parse(msg.extraJson)
+    const sugg = data?.suggestions || {}
+    const parts: string[] = []
+    // 服饰风格
+    if (sugg.outfit?.style) parts.push(String(sugg.outfit.style))
+    // 香水香调族：把 AI 输出的英文枚举翻译成中文（floral → 花香调）
+    if (sugg.perfume?.family) parts.push(`香水：${perfumeFamilyLabel(String(sugg.perfume.family))}`)
+    // 一句核心建议
+    const tips = Array.isArray(sugg.tips) ? sugg.tips : []
+    if (tips.length) parts.push(String(tips[0]))
+    return parts.filter(Boolean).slice(0, 2).join(' · ')
+  } catch {
+    return msg.content || ''
+  }
+}
+
+/**
+ * 场景编码 → 中文名（与后端 MakeoverConstant.SCENE_NAME 对齐）。
+ * <p>
+ * 注意：聊天卡片只展示场景名（更聚焦主题），开场白文案由后端 SHARE_PROMPT 渲染。
+ */
+const SCENE_NAME_MAP: Record<string, string> = {
+  date: '情侣约会',
+  commute: '日常通勤',
+  party: '派对聚会',
+  travel: '外出旅行',
+  wedding: '婚礼仪式',
+  daily: '日常休闲',
+  other: '其他场合'
+}
+const SCENE_EMOJI_MAP: Record<string, string> = {
+  date: '💕',
+  commute: '💼',
+  party: '🎉',
+  travel: '✈️',
+  wedding: '💒',
+  daily: '☕',
+  other: '🌸'
+}
+
+/**
+ * 从 extraJson 中读出场景编码（后端 MakeoverShareService.buildExtraJson 已写入 recordId，
+ * 此处走 recordId 反查接口更可靠；当前实现走最稳路径：从 detail 缓存 / 列表里读）。
+ * 退化方案：直接看 content 中是否含「「xxx」」（后端 SHARE_PROMPT 把 scene 填进占位符）。
+ */
+function recordScene(msg: ChatMessageVO): string {
+  // 优先：尝试从 extraJson.suggestions / 直接字段里读（如果后端未来扩展）
+  if (msg.extraJson) {
+    try {
+      const data = JSON.parse(msg.extraJson)
+      const code = data?.sceneCode || data?.scene
+      if (code && SCENE_NAME_MAP[code]) return code
+    } catch {
+      /* ignore */
+    }
+  }
+  // 兜底：解析 content 中的「场景名」
+  if (msg.content) {
+    const m = msg.content.match(/「([^」]+)」/)
+    if (m) {
+      for (const [code, name] of Object.entries(SCENE_NAME_MAP)) {
+        if (name === m[1]) return code
+      }
+    }
+  }
+  return ''
+}
+
+function sceneName(code: string): string {
+  return SCENE_NAME_MAP[code] || ''
+}
+
+function sceneEmoji(code: string): string {
+  return SCENE_EMOJI_MAP[code] || '✨'
+}
+
+/** 点击卡片 → 跳转到对应改造详情 */
+function goMakeoverRecord(msg: ChatMessageVO) {
+  if (!msg.extraJson) {
+    // 兼容：没有 recordId 时退化为分享者本人重新进入
+    if (msg.senderId === currentUserId.value) router.push('/makeover/history')
+    return
+  }
+  try {
+    const data = JSON.parse(msg.extraJson)
+    const recordId = data?.recordId
+    if (recordId) {
+      router.push({ name: 'MakeoverResult', params: { recordId: String(recordId) } })
+      return
+    }
+  } catch {
+    // ignore
+  }
+  // 兜底：跳历史列表
+  router.push('/makeover/history')
+}
+
+/** 从 msgType=6 的 extraJson 中读字段（后端 WishCardShareService 写入 title / note） */
+function wishCardField(msg: ChatMessageVO, key: 'title' | 'note'): string {
+  if (!msg.extraJson) return ''
+  try {
+    const value = JSON.parse(msg.extraJson)?.[key]
+    return typeof value === 'string' ? value : ''
+  } catch {
+    return ''
+  }
+}
+
+function wishCardTitle(msg: ChatMessageVO): string {
+  return wishCardField(msg, 'title')
+}
+
+function wishCardNote(msg: ChatMessageVO): string {
+  return wishCardField(msg, 'note')
+}
+
 onMounted(async () => {
   // 1. 登录态校验
   if (!userStore.token) {
@@ -658,6 +838,8 @@ onMounted(async () => {
   // 进入聊天页：未读清零
   unreadStore.reset()
   await unreadStore.refresh()
+  // 进入聊天页时立即拉一次伴侣在线状态，确保右上角角标准确
+  refreshPartnerOnline()
   connect()
 
   // 标记"停留在聊天页"：对方发来的消息会被服务端自动标记已读 + SSE 实时推回执
@@ -683,6 +865,7 @@ onMounted(async () => {
 
 let presenceHeartbeatTimer: number | null = null
 let sseChatReadHandler: ((data: any) => void) | null = null
+let ssePartnerOnlineHandler: ((data: any) => void) | null = null
 
 function registerSseChatRead() {
   const sse = getNotificationSSE()
@@ -708,6 +891,20 @@ function registerSseChatRead() {
     }
   }
   sse.on('chat-read', sseChatReadHandler)
+  // 监听伴侣在线状态变化（对方登录/退出时由后端推送）
+  ssePartnerOnlineHandler = (data: { partnerId?: number; online?: boolean }) => {
+    if (!data || data.partnerId == null || typeof data.online !== 'boolean') return
+    // 只处理"自己的伴侣"的事件，避免被其他用户的事件干扰
+    const myPartnerId = Number(
+      (userStore.userInfo as any)?.partnerId ||
+        (userStore.userInfo as any)?.partner?.id ||
+        0
+    )
+    if (myPartnerId && Number(data.partnerId) === myPartnerId) {
+      partnerOnline.value = data.online
+    }
+  }
+  sse.on('partner-online-change', ssePartnerOnlineHandler)
 }
 
 onBeforeUnmount(() => {
@@ -720,6 +917,10 @@ onBeforeUnmount(() => {
   if (sseChatReadHandler) {
     getNotificationSSE().off('chat-read', sseChatReadHandler)
     sseChatReadHandler = null
+  }
+  if (ssePartnerOnlineHandler) {
+    getNotificationSSE().off('partner-online-change', ssePartnerOnlineHandler)
+    ssePartnerOnlineHandler = null
   }
   leaveChatPage().catch(() => {})
   // 注销登出事件监听，避免内存泄漏
@@ -833,7 +1034,49 @@ if (typeof window !== 'undefined') {
               <div class="bubble-text revoked-text">{{ msg.senderId === currentUserId ? '你撤回了一条消息' : '对方撤回了一条消息' }}</div>
             </template>
             <template v-else>
-              <div class="bubble-text">{{ msg.content }}</div>
+              <!-- AI 化妆建议卡片（msg_type=5） -->
+              <div v-if="msg.msgType === 5 && msg.imageUrl" class="makeover-card" @click="goMakeoverRecord(msg)">
+                <div class="makeover-card-cover">
+                  <div class="makeover-card-shine"></div>
+                  <img :src="msg.imageUrl" :alt="msg.content || 'AI 化妆建议'" />
+                  <div class="makeover-card-badge">
+                    <span class="badge-icon">💄</span>
+                    <span>AI 妆造</span>
+                  </div>
+                  <div v-if="recordScene(msg)" class="makeover-card-scene">
+                    <span class="scene-icon">{{ sceneEmoji(recordScene(msg)) }}</span>
+                    <span>{{ sceneName(recordScene(msg)) }}</span>
+                  </div>
+                </div>
+                <div class="makeover-card-body">
+                  <!-- 后端按场景渲染的开场白（"我刚试了 AI 「情侣约会」妆造，今晚约我时眼前一亮哦~"）；
+                       老数据 / content 为空时才回落到通用提示 -->
+                  <div v-if="msg.content" class="makeover-card-content">
+                    {{ msg.content }}
+                  </div>
+                  <div v-if="makeoverHint(msg)" class="makeover-card-hint">
+                    <span class="hint-icon">✨</span>
+                    {{ makeoverHint(msg) }}
+                  </div>
+                  <div class="makeover-card-action">
+                    <span class="action-text">点击查看完整妆造</span>
+                    <span class="action-arrow">→</span>
+                  </div>
+                </div>
+              </div>
+              <!-- 心愿记录卡片（msg_type=6） -->
+              <div v-else-if="msg.msgType === 6 && msg.imageUrl" class="wish-share-card">
+                <div class="wish-share-cover">
+                  <img :src="msg.imageUrl" :alt="wishCardTitle(msg) || '心愿记录卡片'" />
+                </div>
+                <div class="wish-share-body">
+                  <div class="wish-share-title">🎉 心愿达成</div>
+                  <div v-if="wishCardTitle(msg)" class="wish-share-name">{{ wishCardTitle(msg) }}</div>
+                  <div v-if="wishCardNote(msg)" class="wish-share-note">{{ wishCardNote(msg) }}</div>
+                </div>
+              </div>
+              <!-- 普通文本消息 -->
+              <div v-else class="bubble-text">{{ msg.content }}</div>
               <div class="bubble-meta">
                 <span class="time">{{ formatTime(msg.createdAt) }}</span>
                 <span
@@ -872,6 +1115,8 @@ if (typeof window !== 'undefined') {
         placeholder="💭 说点什么吧…"
         :border="false"
         @input="onInputChange"
+        @compositionstart="onCompositionStart"
+        @compositionend="onCompositionEnd"
         @keyup.enter="sendMessage"
       />
       <van-button
@@ -1064,6 +1309,9 @@ if (typeof window !== 'undefined') {
   background: #fff;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   position: relative;
+  /* 防止卡片/长文本撑爆容器盖到头像 */
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 .bubble::before {
   content: '';
@@ -1091,6 +1339,260 @@ if (typeof window !== 'undefined') {
   line-height: 1.4;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* 卡片消息：去掉气泡左右 padding，避免卡片被挤压变形 */
+.msg-row .bubble:has(.makeover-card) {
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  /* 卡片高度通常比头像高不少，让气泡允许比头像高，flex 自然处理 */
+  max-width: 280px;
+}
+/* 卡片消息：去掉小尖角，避免尖角扎进头像 */
+.msg-row .bubble:has(.makeover-card)::before {
+  display: none;
+}
+
+/* ============ 心愿记录卡片（msg_type=6） ============ */
+.msg-row .bubble:has(.wish-share-card) {
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  max-width: 280px;
+}
+.msg-row .bubble:has(.wish-share-card)::before {
+  display: none;
+}
+
+.wish-share-card {
+  width: 100%;
+  max-width: 240px;
+  box-sizing: border-box;
+  background: #fff;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 107, 107, 0.18);
+  box-shadow: 0 4px 14px rgba(255, 107, 107, 0.15),
+              0 2px 6px rgba(0, 0, 0, 0.06);
+}
+.wish-share-cover {
+  width: 100%;
+  background: linear-gradient(160deg, #fff3f1 0%, #ffffff 60%);
+  line-height: 0;
+}
+.wish-share-cover img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.wish-share-body {
+  padding: 8px 10px 10px;
+}
+.wish-share-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #ff6b6b;
+}
+.wish-share-name {
+  margin-top: 2px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  word-break: break-word;
+}
+.wish-share-note {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #999;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ============ AI 化妆建议卡片（msg_type=5） ============ */
+@keyframes makeover-card-shine {
+  0% { transform: translateX(-120%) skewX(-20deg); }
+  100% { transform: translateX(220%) skewX(-20deg); }
+}
+@keyframes makeover-card-pop {
+  0% { transform: scale(0.96); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes makeover-arrow {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(3px); }
+}
+
+.makeover-card {
+  width: 100%;
+  max-width: 260px;
+  min-width: 0;
+  box-sizing: border-box;
+  background: linear-gradient(160deg, #fff5f3 0%, #ffffff 60%);
+  border-radius: 14px;
+  overflow: hidden;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(255, 107, 107, 0.15),
+              0 2px 6px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(255, 107, 107, 0.18);
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+  animation: makeover-card-pop 0.32s ease-out;
+  position: relative;
+}
+.makeover-card:active {
+  transform: scale(0.98);
+  box-shadow: 0 2px 6px rgba(255, 107, 107, 0.18);
+}
+.makeover-card-cover {
+  width: 100%;
+  height: 180px;
+  background: linear-gradient(135deg, #ffe2e2 0%, #ffe7c2 100%);
+  overflow: hidden;
+  position: relative;
+}
+.makeover-card-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.4s ease;
+}
+.makeover-card:hover .makeover-card-cover img {
+  transform: scale(1.04);
+}
+/* 闪光扫过效果（hover 时从左到右扫一条高光带） */
+.makeover-card-shine {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.45) 50%,
+    transparent 70%
+  );
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.makeover-card:hover .makeover-card-shine {
+  opacity: 1;
+  animation: makeover-card-shine 1.2s ease-in-out;
+}
+/* 左上角「AI 妆造」徽章 */
+.makeover-card-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: rgba(255, 107, 107, 0.92);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 2px 6px rgba(255, 107, 107, 0.3);
+}
+.makeover-card-badge .badge-icon {
+  font-size: 12px;
+}
+/* 右上角场景角标 */
+.makeover-card-scene {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.88);
+  color: #b5436a;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+.makeover-card-scene .scene-icon {
+  font-size: 12px;
+}
+.makeover-card-body {
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.makeover-card-content {
+  font-size: 13px;
+  color: #333;
+  line-height: 1.5;
+  word-break: break-word;
+  font-weight: 500;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.makeover-card-hint {
+  font-size: 12px;
+  color: #888;
+  line-height: 1.5;
+  word-break: break-word;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  background: rgba(255, 240, 240, 0.6);
+  padding: 6px 8px;
+  border-radius: 8px;
+  border-left: 2px solid #ff8a8a;
+}
+.makeover-card-hint .hint-icon {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.makeover-card-action {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(255, 107, 107, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #ff6b6b;
+  font-weight: 500;
+}
+.makeover-card-action .action-arrow {
+  font-size: 13px;
+  animation: makeover-arrow 1.6s ease-in-out infinite;
+}
+/* 我方气泡内：卡片消息整体右对齐到头像位置 */
+.msg-row.mine .bubble:has(.makeover-card) {
+  background: transparent;
+}
+.msg-row.mine .makeover-card-cover {
+  border-radius: 8px 8px 0 0;
+}
+/* 深色模式：边框与背景反相，避免"白卡片在黑气泡里"刺眼 */
+.dark-mode .makeover-card {
+  background: linear-gradient(160deg, #3d2a2a 0%, #2d2d2d 60%);
+  border-color: rgba(255, 138, 138, 0.3);
+}
+.dark-mode .makeover-card-content {
+  color: #f5f5f5;
+}
+.dark-mode .makeover-card-hint {
+  background: rgba(255, 138, 138, 0.12);
+  color: #d0d0d0;
+}
+.dark-mode .makeover-card-action {
+  border-top-color: rgba(255, 138, 138, 0.3);
+  color: #ff8a8a;
 }
 .bubble-text.revoked-text {
   font-size: 13px;

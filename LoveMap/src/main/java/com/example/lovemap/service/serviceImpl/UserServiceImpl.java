@@ -15,6 +15,7 @@ import com.example.lovemap.model.vo.PartnerVO;
 import com.example.lovemap.model.vo.UserStatsVO;
 import com.example.lovemap.model.vo.UserVO;
 import com.example.lovemap.service.UserService;
+import com.example.lovemap.service.VipService;
 import com.example.lovemap.utils.AliyunOSSUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -43,6 +44,7 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
     private final AliyunOSSUtils aliyunOSSUtils;
     private final ObjectMapper objectMapper;
+    private final VipService vipService;
 
     /**
      * 获取用户信息
@@ -74,6 +76,13 @@ public class UserServiceImpl implements UserService {
         vo.setIsBound(user.getIsBound() != null && user.getIsBound() == 1);
         vo.setRelationshipStart(user.getRelationshipStart());
         vo.setGroupId(user.getGroupId());
+        vo.setGender(user.getGender());
+
+        // VIP 信息（归属情侣组，取双方生效更高的一方）；本人与伴侣展示同一生效等级
+        VipService.EffectiveVip vip = vipService.resolveEffectiveVip(user);
+        vo.setVipLevel(vip.level());
+        vo.setVipLevelName(vip.name());
+        vo.setVipExpireAt(vip.expireAt());
 
         // 4. 计算在一起天数
         if (user.getRelationshipStart() != null) {
@@ -99,6 +108,9 @@ public class UserServiceImpl implements UserService {
                 partnerVO.setAvatarUrl(partner.getAvatarUrl());
                 partnerVO.setPhone(maskPhone(partner.getPhone()));
                 partnerVO.setEmail(partner.getEmail());
+                partnerVO.setGender(partner.getGender());
+                partnerVO.setVipLevel(vip.level());
+                partnerVO.setVipLevelName(vip.name());
                 vo.setPartner(partnerVO);
             }
         }
@@ -143,6 +155,7 @@ public class UserServiceImpl implements UserService {
         user.setNickname(dto.getNickname());
         user.setPhone(dto.getPhone());
         user.setEmail(dto.getEmail());
+        user.setGender(dto.getGender());
 
         // 4. 处理密码修改（选填）
         if (StringUtils.hasText(dto.getNewPassword())) {
@@ -343,7 +356,7 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-     * 获取用户通知设置（从Redis读取，不存在则返回默认值）
+     * 获取用户通知设置（从Redis读取，不存在则返回默认值并回写Redis）
      */
     @Override
     public Result<NotificationSettingsVO> getNotificationSettings(Integer userId) {
@@ -355,46 +368,54 @@ public class UserServiceImpl implements UserService {
             return Result.success(cached);
         }
 
-        // 新用户返回默认值（全部开启）
+        // 新用户返回默认值（全部开启），并把默认值回写 Redis，避免下一次再走未命中路径
         NotificationSettingsVO defaults = buildDefaultNotificationSettings();
+        ServiceHelper.putToCache(redisTemplate, objectMapper, cacheKey, defaults);
         return Result.success(defaults);
     }
 
     /**
-     * 更新用户通知设置（部分更新，直接写入Redis）
+     * 更新用户通知设置（部分更新 → DEL → 重构完整 VO → 写回 Redis）
+     * <p>
+     * 流程说明：
+     * <ol>
+     *   <li>先 DELETE 旧缓存（避免任何脏读或半旧值残留）；</li>
+     *   <li>用默认值打底 + DTO 中非 null 字段覆盖，构造出"最终态"的 VO；</li>
+     *   <li>PUT 新 VO 到 Redis（10 分钟 TTL 兜底）。</li>
+     * </ol>
+     * 这能保证下一次 {@link #getNotificationSettings} 读到的就是最新值，
+     * 同时把"最新信息缓存到 Redis"作为显式步骤，避免只 DEL 不 PUT 的常见错误。
      */
     @Override
     public Result<NotificationSettingsVO> updateNotificationSettings(Integer userId, NotificationSettingsDTO dto) {
         String cacheKey = UserConstant.USER_NOTIFICATION_SETTINGS + userId;
 
-        // 1. 读取当前设置（不存在则用默认值）
-        NotificationSettingsVO current = ServiceHelper.getFromCache(redisTemplate, objectMapper, cacheKey, NotificationSettingsVO.class);
-        if (current == null) {
-            current = buildDefaultNotificationSettings();
-        }
+        // 1. 显式删除旧缓存（确保后续读路径不会命中半旧值）
+        redisTemplate.delete(cacheKey);
 
-        // 2. 部分更新：仅覆盖非null字段
+        // 2. 用默认值打底，DTO 中非 null 字段覆盖，构造最终态 VO
+        NotificationSettingsVO finalSettings = buildDefaultNotificationSettings();
         if (dto.getEnablePush() != null) {
-            current.setEnablePush(dto.getEnablePush());
+            finalSettings.setEnablePush(dto.getEnablePush());
         }
         if (dto.getPhotoUpload() != null) {
-            current.setPhotoUpload(dto.getPhotoUpload());
+            finalSettings.setPhotoUpload(dto.getPhotoUpload());
         }
         if (dto.getAnniversary() != null) {
-            current.setAnniversary(dto.getAnniversary());
+            finalSettings.setAnniversary(dto.getAnniversary());
         }
         if (dto.getEmail() != null) {
-            current.setEmail(dto.getEmail());
+            finalSettings.setEmail(dto.getEmail());
         }
         if (dto.getSystem() != null) {
-            current.setSystem(dto.getSystem());
+            finalSettings.setSystem(dto.getSystem());
         }
 
-        // 3. 写入Redis
-        ServiceHelper.putToCache(redisTemplate, objectMapper, cacheKey, current);
+        // 3. 把最新完整 VO 写回 Redis
+        ServiceHelper.putToCache(redisTemplate, objectMapper, cacheKey, finalSettings);
 
-        log.info("用户通知设置已更新, userId: {}", userId);
-        return Result.success("设置已保存", current);
+        log.info("用户通知设置已更新并缓存到Redis, userId: {}, settings: {}", userId, finalSettings);
+        return Result.success("设置已保存", finalSettings);
     }
 
     /**

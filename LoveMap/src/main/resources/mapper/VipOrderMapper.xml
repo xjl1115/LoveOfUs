@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.lovemap.mapper.VipOrderMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.lovemap.model.entity.VipOrder">
+        <id column="id" property="id"/>
+        <result column="order_no" property="orderNo"/>
+        <result column="user_id" property="userId"/>
+        <result column="group_id" property="groupId"/>
+        <result column="vip_level" property="vipLevel"/>
+        <result column="price_yuan" property="priceYuan"/>
+        <result column="status" property="status"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="activated_at" property="activatedAt"/>
+    </resultMap>
+
+    <sql id="BaseColumns">
+        id, order_no, user_id, group_id, vip_level, price_yuan,
+        status, created_at, activated_at
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO vip_order (order_no, user_id, group_id, vip_level, price_yuan, status, created_at)
+        VALUES (#{orderNo}, #{userId}, #{groupId}, #{vipLevel}, #{priceYuan}, #{status}, #{createdAt})
+    </insert>
+
+    <select id="selectByOrderNo" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM vip_order
+        WHERE order_no = #{orderNo}
+        LIMIT 1
+    </select>
+
+    <update id="updateStatus">
+        UPDATE vip_order
+        SET status = #{status},
+            activated_at = #{activatedAt}
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectPendingOrders" resultType="com.example.lovemap.model.vo.VipPendingOrderVO">
+        SELECT o.order_no,
+               o.user_id,
+               u.nickname,
+               o.vip_level,
+               o.price_yuan,
+               o.created_at
+        FROM vip_order o
+                 LEFT JOIN user u ON u.id = o.user_id
+        WHERE o.status = #{pendingStatus}
+        ORDER BY o.created_at ASC
+    </select>
+
+    <update id="cancelPendingOrders">
+        UPDATE vip_order
+        SET status = #{canceledStatus}
+        WHERE user_id = #{userId}
+          AND status = #{pendingStatus}
+    </update>
+
+    <select id="selectByUserOrGroup" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM vip_order
+        <where>
+            user_id = #{userId}
+            <if test="groupId != null">
+                OR group_id = #{groupId}
+            </if>
+        </where>
+        ORDER BY created_at DESC, id DESC
+    </select>
+
+    <update id="cancelPendingOrder">
+        UPDATE vip_order
+        SET status = #{canceledStatus}
+        WHERE id = #{id}
+          AND status = #{pendingStatus}
+    </update>
+
+</mapper>

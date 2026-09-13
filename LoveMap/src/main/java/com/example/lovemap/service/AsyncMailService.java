@@ -30,7 +30,7 @@ public class AsyncMailService {
     @Value("${verify.code.expire:60}")
     private Integer expire;
 
-    @Value("${app.name:LoveMap}")
+    @Value("${app.name:LoveOfUs}")
     private String senderName;
 
     /**
@@ -85,6 +85,61 @@ public class AsyncMailService {
     }
 
     /**
+     * 异步发送 VIP 下单通知邮件给专属顾问
+     *
+     * @param to              顾问邮箱
+     * @param nickname        下单用户昵称
+     * @param tierName        VIP 档位名称
+     * @param priceYuan       档位价格（元）
+     * @param orderNo         订单号
+     * @param activateCommand 顾问收款后开通订单的命令
+     */
+    @Async("verifyCodeExecutor")
+    public void sendVipOrderMailAsync(String to, String nickname, String tierName, Integer priceYuan,
+                                      String orderNo, String activateCommand) {
+        long startTime = System.currentTimeMillis();
+        try {
+            MimeMessage mimeMessage = javaMailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
+            helper.setFrom(from, senderName);
+            helper.setTo(to);
+            helper.setSubject("【" + senderName + "】VIP 开通申请 - " + nickname + " - " + tierName);
+            helper.setText(buildVipOrderContent(nickname, tierName, priceYuan, orderNo, activateCommand), true);
+            javaMailSender.send(mimeMessage);
+            log.info("VIP 开通申请邮件发送成功, 耗时{}ms, 收件人:{}, 订单号:{}", System.currentTimeMillis() - startTime, to, orderNo);
+        } catch (Exception e) {
+            log.error("VIP 开通申请邮件发送失败, 耗时{}ms, 收件人:{}, 订单号:{}, 错误:{}", System.currentTimeMillis() - startTime, to, orderNo, e.getMessage());
+        }
+    }
+
+    /**
+     * 异步发送 VIP 开通成功邮件
+     *
+     * @param to              收件人邮箱
+     * @param nickname        收件人昵称
+     * @param tierName        VIP 档位名称
+     * @param activatedAtText 开通时间（已格式化）
+     * @param expireAtText    到期时间（已格式化，永久卡为“永久有效”）
+     */
+    @Async("verifyCodeExecutor")
+    public void sendVipActivatedMailAsync(String to, String nickname, String tierName,
+                                          String activatedAtText, String expireAtText) {
+        long startTime = System.currentTimeMillis();
+        try {
+            MimeMessage mimeMessage = javaMailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
+            helper.setFrom(from, senderName);
+            helper.setTo(to);
+            helper.setSubject("【" + senderName + "】VIP 开通成功 - " + tierName);
+            helper.setText(buildVipActivatedContent(nickname, tierName, activatedAtText, expireAtText), true);
+            javaMailSender.send(mimeMessage);
+            log.info("VIP 开通成功邮件发送成功, 耗时{}ms, 收件人:{}, 档位:{}", System.currentTimeMillis() - startTime, to, tierName);
+        } catch (Exception e) {
+            log.error("VIP 开通成功邮件发送失败, 耗时{}ms, 收件人:{}, 错误:{}", System.currentTimeMillis() - startTime, to, e.getMessage());
+        }
+    }
+
+    /**
      * 构建系统通知邮件内容（HTML格式）
      */
     private String buildNotificationContent(String nickname, String actor, String action) {
@@ -92,7 +147,7 @@ public class AsyncMailService {
         return String.format(
                 "<div style=\"font-family: 'Microsoft YaHei', Arial, sans-serif; max-width: 600px; margin: 0 auto;\">" +
                         "<div style=\"padding: 30px; text-align: center; border-bottom: 2px solid #e74c3c;\">" +
-                        "<h1 style=\"color: #e74c3c; margin: 0; font-size: 26px; font-weight: 600; letter-spacing: 2px;\">❤ LoveMap</h1>" +
+                        "<h1 style=\"color: #e74c3c; margin: 0; font-size: 26px; font-weight: 600; letter-spacing: 2px;\">❤ LoveOfUs</h1>" +
                         "<p style=\"color: #888888; margin: 10px 0 0 0; font-size: 14px;\">记录我们的每一刻</p>" +
                         "</div>" +
                         "<div style=\"padding: 40px 30px;\">" +
@@ -105,7 +160,7 @@ public class AsyncMailService {
                         "</p>" +
                         "</div>" +
                         "<p style=\"color: #999999; font-size: 13px; margin: 20px 0;\">" +
-                        "快打开 LoveMap 查看详细内容吧！" +
+                        "快打开 LoveOfUs 查看详细内容吧！" +
                         "</p>" +
                         "<div style=\"background: #f9f9f9; border: 1px solid #eeeeee; border-radius: 8px; padding: 15px; margin: 20px 0;\">" +
                         "<p style=\"color: #888888; font-size: 13px; margin: 0;\">" +
@@ -115,7 +170,7 @@ public class AsyncMailService {
                         "</div>" +
                         "<div style=\"padding: 20px; text-align: center; border-top: 1px solid #eeeeee;\">" +
                         "<p style=\"color: #bbbbbb; font-size: 12px; margin: 0;\">" +
-                        "此邮件由 LoveMap 自动发送，请勿回复<br>" +
+                        "此邮件由 LoveOfUs 自动发送，请勿回复<br>" +
                         "发送时间：%s" +
                         "</p>" +
                         "</div>" +
@@ -170,7 +225,7 @@ public class AsyncMailService {
         return String.format(
                 "<div style=\"font-family: 'Microsoft YaHei', Arial, sans-serif; max-width: 600px; margin: 0 auto;\">" +
                         "<div style=\"padding: 30px; text-align: center; border-bottom: 2px solid #e74c3c;\">" +
-                        "<h1 style=\"color: #e74c3c; margin: 0; font-size: 26px; font-weight: 600; letter-spacing: 2px;\">❤ LoveMap</h1>" +
+                        "<h1 style=\"color: #e74c3c; margin: 0; font-size: 26px; font-weight: 600; letter-spacing: 2px;\">❤ LoveOfUs</h1>" +
                         "<p style=\"color: #888888; margin: 10px 0 0 0; font-size: 14px;\">记录我们的每一刻</p>" +
                         "</div>" +
                         "<div style=\"padding: 40px 30px;\">" +
@@ -185,7 +240,7 @@ public class AsyncMailService {
                         descriptionBlock +
                         "</div>" +
                         "<p style=\"color: #999999; font-size: 13px; margin: 20px 0;\">" +
-                        "快打开 LoveMap 为TA准备一份特别的惊喜吧！" +
+                        "快打开 LoveOfUs 为TA准备一份特别的惊喜吧！" +
                         "</p>" +
                         "<div style=\"background: #f9f9f9; border: 1px solid #eeeeee; border-radius: 8px; padding: 15px; margin: 20px 0;\">" +
                         "<p style=\"color: #888888; font-size: 13px; margin: 0;\">" +
@@ -195,12 +250,92 @@ public class AsyncMailService {
                         "</div>" +
                         "<div style=\"padding: 20px; text-align: center; border-top: 1px solid #eeeeee;\">" +
                         "<p style=\"color: #bbbbbb; font-size: 12px; margin: 0;\">" +
-                        "此邮件由 LoveMap 自动发送，请勿回复<br>" +
+                        "此邮件由 LoveOfUs 自动发送，请勿回复<br>" +
                         "发送时间：%s" +
                         "</p>" +
                         "</div>" +
                         "</div>",
                 nickname, time
+        );
+    }
+
+    /**
+     * 构建 VIP 下单通知邮件内容（HTML格式）
+     */
+    private String buildVipOrderContent(String nickname, String tierName, Integer priceYuan,
+                                        String orderNo, String activateCommand) {
+        String time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        return String.format(
+                "<div style=\"font-family: 'Microsoft YaHei', Arial, sans-serif; max-width: 600px; margin: 0 auto;\">" +
+                        "<div style=\"padding: 30px; text-align: center; border-bottom: 2px solid #e74c3c;\">" +
+                        "<h1 style=\"color: #e74c3c; margin: 0; font-size: 26px; font-weight: 600; letter-spacing: 2px;\">❤ LoveOfUs</h1>" +
+                        "<p style=\"color: #888888; margin: 10px 0 0 0; font-size: 14px;\">记录我们的每一刻</p>" +
+                        "</div>" +
+                        "<div style=\"padding: 40px 30px;\">" +
+                        "<h2 style=\"color: #333333; margin: 0 0 20px 0; font-size: 20px; font-weight: 600; border-left: 4px solid #e74c3c; padding-left: 12px;\">VIP 开通申请</h2>" +
+                        "<div style=\"background: #fff5f5; border-radius: 12px; padding: 25px; margin: 20px 0;\">" +
+                        "<p style=\"color: #666666; font-size: 15px; line-height: 1.8; margin: 0 0 10px 0;\">" +
+                        "用户：<span style=\"color: #e74c3c; font-weight: bold;\">%s</span>，正在开通 VIP 服务" +
+                        "</p>" +
+                        "<p style=\"color: #666666; font-size: 15px; line-height: 1.8; margin: 0 0 10px 0;\">" +
+                        "等级：<span style=\"color: #e74c3c; font-weight: bold;\">%s</span>（%d 元）" +
+                        "</p>" +
+                        "<p style=\"color: #666666; font-size: 15px; line-height: 1.8; margin: 0;\">" +
+                        "订单号：<span style=\"color: #e74c3c; font-weight: bold;\">%s</span>" +
+                        "</p>" +
+                        "</div>" +
+                        "<p style=\"color: #333333; font-size: 15px; font-weight: 600; margin: 24px 0 8px 0;\">开通命令（确认收款后执行）</p>" +
+                        "<pre style=\"background: #2d2d2d; color: #f8f8f2; border-radius: 8px; padding: 15px; margin: 0; font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-all;\">%s</pre>" +
+                        "</div>" +
+                        "<div style=\"padding: 20px; text-align: center; border-top: 1px solid #eeeeee;\">" +
+                        "<p style=\"color: #bbbbbb; font-size: 12px; margin: 0;\">" +
+                        "此邮件由 LoveOfUs 自动发送，请勿回复<br>" +
+                        "发送时间：%s" +
+                        "</p>" +
+                        "</div>" +
+                        "</div>",
+                nickname, tierName, priceYuan, orderNo, activateCommand, time
+        );
+    }
+
+    /**
+     * 构建 VIP 开通成功邮件内容（HTML格式）
+     */
+    private String buildVipActivatedContent(String nickname, String tierName,
+                                            String activatedAtText, String expireAtText) {
+        String time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        return String.format(
+                "<div style=\"font-family: 'Microsoft YaHei', Arial, sans-serif; max-width: 600px; margin: 0 auto;\">" +
+                        "<div style=\"padding: 30px; text-align: center; border-bottom: 2px solid #d4af37;\">" +
+                        "<h1 style=\"color: #d4af37; margin: 0; font-size: 26px; font-weight: 600; letter-spacing: 2px;\">❤ LoveOfUs</h1>" +
+                        "<p style=\"color: #888888; margin: 10px 0 0 0; font-size: 14px;\">记录我们的每一刻</p>" +
+                        "</div>" +
+                        "<div style=\"padding: 40px 30px;\">" +
+                        "<p style=\"color: #333333; font-size: 16px; line-height: 1.8; margin: 0 0 20px 0;\">" +
+                        "<span style=\"color: #d4af37; font-weight: bold;\">%s</span>，您好！" +
+                        "</p>" +
+                        "<div style=\"background: #fffbf0; border-radius: 12px; padding: 25px; margin: 20px 0; text-align: center;\">" +
+                        "<p style=\"font-size: 20px; color: #d4af37; margin: 0 0 15px 0;\">🎉 VIP 开通成功</p>" +
+                        "<p style=\"color: #666666; font-size: 15px; line-height: 1.8; margin: 0;\">" +
+                        "恭喜您开通 <strong style=\"color: #d4af37;\">%s</strong>，情侣双人共享全部权益" +
+                        "</p>" +
+                        "<p style=\"color: #666666; font-size: 15px; line-height: 1.8; margin: 10px 0 0 0;\">" +
+                        "开通时间：<strong>%s</strong><br>" +
+                        "到期时间：<strong>%s</strong>" +
+                        "</p>" +
+                        "</div>" +
+                        "<p style=\"color: #999999; font-size: 13px; margin: 20px 0;\">" +
+                        "快打开 LoveOfUs 体验您的专属权益吧！" +
+                        "</p>" +
+                        "</div>" +
+                        "<div style=\"padding: 20px; text-align: center; border-top: 1px solid #eeeeee;\">" +
+                        "<p style=\"color: #bbbbbb; font-size: 12px; margin: 0;\">" +
+                        "此邮件由 LoveOfUs 自动发送，请勿回复<br>" +
+                        "发送时间：%s" +
+                        "</p>" +
+                        "</div>" +
+                        "</div>",
+                nickname, tierName, activatedAtText, expireAtText, time
         );
     }
 
@@ -212,7 +347,7 @@ public class AsyncMailService {
         return String.format(
                 "<div style=\"font-family: 'Microsoft YaHei', Arial, sans-serif; max-width: 600px; margin: 0 auto;\">" +
                         "<div style=\"padding: 30px; text-align: center; border-bottom: 2px solid #e74c3c;\">" +
-                        "<h1 style=\"color: #e74c3c; margin: 0; font-size: 26px; font-weight: 600; letter-spacing: 2px;\">❤ LoveMap</h1>" +
+                        "<h1 style=\"color: #e74c3c; margin: 0; font-size: 26px; font-weight: 600; letter-spacing: 2px;\">❤ LoveOfUs</h1>" +
                         "<p style=\"color: #888888; margin: 10px 0 0 0; font-size: 14px;\">记录我们的每一刻</p>" +
                         "</div>" +
                         "<div style=\"padding: 40px 30px;\">" +
@@ -234,7 +369,7 @@ public class AsyncMailService {
                         "</div>" +
                         "<div style=\"padding: 20px; text-align: center; border-top: 1px solid #eeeeee;\">" +
                         "<p style=\"color: #bbbbbb; font-size: 12px; margin: 0;\">" +
-                        "此邮件由 LoveMap 自动发送，请勿回复<br>" +
+                        "此邮件由 LoveOfUs 自动发送，请勿回复<br>" +
                         "发送时间：%s" +
                         "</p>" +
                         "</div>" +

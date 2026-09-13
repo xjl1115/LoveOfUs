@@ -3,6 +3,7 @@ package com.example.lovemap.model.vo;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 /**
  * 用户信息VO
@@ -66,6 +67,11 @@ public class UserVO {
     private LocalDate relationshipStart;
 
     /**
+     * 性别：0-未知/未设置，1-男，2-女
+     */
+    private Integer gender;
+
+    /**
      * 解除绑定状态
      */
     private UnbindStatusVO unbindStatus;
@@ -74,4 +80,19 @@ public class UserVO {
      * 统计数据
      */
     private UserStatsVO stats;
+
+    /**
+     * VIP 等级：0-普通用户，1-周卡，2-月卡，3-季卡，4-年卡，5-永久
+     */
+    private Integer vipLevel;
+
+    /**
+     * VIP 等级名称
+     */
+    private String vipLevelName;
+
+    /**
+     * VIP 到期时间，未开通或永久卡为 null
+     */
+    private LocalDateTime vipExpireAt;
 }

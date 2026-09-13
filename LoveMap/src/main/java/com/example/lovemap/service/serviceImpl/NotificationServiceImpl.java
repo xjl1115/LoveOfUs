@@ -239,14 +239,24 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Notification createNotification(Integer userId, String text) {
+        return createNotification(userId, text, NotificationConstant.TYPE_SYSTEM, null);
+    }
+
+    /**
+     * 创建通知（存入数据库，可指定类型与关联业务ID）
+     */
+    private Notification createNotification(Integer userId, String text, Integer type, Long businessId) {
         Notification notification = new Notification();
         notification.setUserId(userId);
         notification.setText(text);
+        notification.setType(type != null ? type : NotificationConstant.TYPE_SYSTEM);
+        notification.setBusinessId(businessId);
         notification.setIsRead(0);
         notification.setCreatedAt(LocalDateTime.now().format(FORMATTER));
 
         notificationMapper.insert(notification);
-        log.info("创建通知成功, userId: {}, text: {}", userId, text);
+        log.info("创建通知成功, userId: {}, type: {}, businessId: {}, text: {}",
+                userId, notification.getType(), businessId, text);
 
         return notification;
     }
@@ -261,6 +271,11 @@ public class NotificationServiceImpl implements NotificationService {
         vo.setUserId(notification.getUserId());
         vo.setIsRead(notification.getIsRead());
         vo.setCreatedAt(notification.getCreatedAt());
+        vo.setType(notification.getType());
+        vo.setBusinessId(notification.getBusinessId());
+        if (notification.getType() != null && notification.getType() == NotificationConstant.TYPE_ANNIVERSARY) {
+            vo.setTypeName("纪念日提醒");
+        }
         return vo;
     }
 
@@ -270,8 +285,17 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void createAndPushNotification(Integer userId, String text) {
+        createAndPushNotification(userId, text, NotificationConstant.TYPE_SYSTEM, null);
+    }
+
+    /**
+     * 创建通知并推送SSE（带类型与关联业务ID，供纪念日提醒等业务定位来源）
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void createAndPushNotification(Integer userId, String text, Integer type, Long businessId) {
         // 创建通知记录
-        Notification notification = createNotification(userId, text);
+        Notification notification = createNotification(userId, text, type, businessId);
 
         // 转换为 VO
         NotificationVO vo = convertToVO(notification);

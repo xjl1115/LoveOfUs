@@ -8,6 +8,7 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
@@ -92,6 +93,34 @@ public class RateLimiterService {
      */
     public long getRemainingCount(String email) {
         return CaptchaConstant.RATE_LIMIT_MAX_COUNT - getCurrentCount(email);
+    }
+
+    /**
+     * 通用滑动窗口限流：给定 key、最大次数与窗口大小
+     *
+     * @param key       限流 key（业务自己保证唯一）
+     * @param maxCount  窗口内最大允许次数
+     * @param window    窗口时长
+     * @return true=允许，false=被限流
+     */
+    public boolean checkAndRecordForUser(String key, int maxCount, Duration window) {
+        long now = System.currentTimeMillis();
+        long windowStart = now - window.toMillis();
+        long expireSeconds = Math.max(1, window.getSeconds());
+        try {
+            Long result = redisTemplate.execute(
+                    redisScript,
+                    Collections.singletonList(key),
+                    String.valueOf(windowStart),
+                    String.valueOf(now),
+                    String.valueOf(maxCount),
+                    String.valueOf(expireSeconds));
+            return result != null && result == 1L;
+        } catch (Exception e) {
+            // Redis 异常时降级为放行，避免阻塞业务
+            log.warn("限流脚本执行异常, key={}, err={}", key, e.getMessage());
+            return true;
+        }
     }
 
     /**

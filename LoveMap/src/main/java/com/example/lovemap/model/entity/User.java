@@ -59,6 +59,21 @@ public class User {
     private LocalDate relationshipStart;
 
     /**
+     * 性别：0-未知/未设置，1-男，2-女
+     */
+    private Integer gender;
+
+    /**
+     * VIP 等级：0-普通用户，1-周卡，2-月卡，3-季卡，4-年卡，5-永久
+     */
+    private Integer vipLevel;
+
+    /**
+     * VIP 到期时间：未开通或永久卡时为 null
+     */
+    private LocalDateTime vipExpireAt;
+
+    /**
      * 创建时间
      */
     private LocalDateTime createdAt;

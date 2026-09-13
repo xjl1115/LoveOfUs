@@ -71,3 +71,18 @@ HELP.md
 
 # ==================== MyBatis Generator ====================
 src/main/resources/mapper/**/*.xml.bak
+
+# ==================== 本地视觉校验 / 临时工具产物 ====================
+.harness-out/
+.harness-cache/
+harness.html
+vite.harness.config.ts
+.trae/
+
+# ==================== 本地生成物 ====================
+# Maven 依赖清单（本地生成，含本机绝对路径）
+LoveMap/cp.txt
+# 编译 / 反编译产物
+*.class
+# 部署备份
+backups/

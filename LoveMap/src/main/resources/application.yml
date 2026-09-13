@@ -77,6 +77,15 @@ aliyun:
     avatar_path: LoveMap/avatar/
     photo_path: LoveMap/photo/
 
+# 文件存储后端
+# 开发调试（默认）	file.storage=local，文件落在 ${user.dir}/uploads
+# 生产环境	file.storage=oss + 设 OSS_ENDPOINT/BUCKET/REGION 环境变量
+file:
+  storage: ${FILE_STORAGE:local}
+  local:
+    base-dir: ${FILE_LOCAL_BASE_DIR:${user.dir}/uploads}
+    url-prefix: ${FILE_LOCAL_URL_PREFIX:http://localhost:8080/uploads}
+
 # 导出文件存储路径（默认：系统临时目录）
 export:
   storage-path: ${user.dir}/loveofus/exports
@@ -84,6 +93,17 @@ export:
 # SSE 配置
 sse:
   timeout: 1800000  # 超时时间（毫秒），默认30分钟
+
+# VIP 配置
+#开通接口
+# curl -X POST "http://localhost:8080/api/vip/admin/orders/<订单号>/activate" -H "X-Vip-Admin-Token: <你的密钥>"
+#查询接口
+#
+vip:
+  # 顾问开通接口密钥：请求头 X-Vip-Admin-Token 必须与之一致；留空表示关闭该接口
+  admin-token: ${VIP_ADMIN_TOKEN:}
+  # 对外访问地址（末尾不带 /），用于生成顾问通知邮件里的开通命令
+  public-base-url: ${VIP_PUBLIC_BASE_URL:http://localhost:8080}
 
 # AI 配置（DashScope / 通义千问）
 ai:
@@ -95,7 +115,7 @@ ai:
   dashscope:
     api-key: ${DASHSCOPE_API_KEY:}
     # 默认使用 qwen-plus：性价比高、中文好；也可填 qwen-turbo / qwen-max
-    model-name: ${DASHSCOPE_MODEL:qwen3.7-flash}
+    model-name: ${DASHSCOPE_MODEL:qwen3.7-flash-2026-07-15}
     temperature: 0.7
     max-tokens: 1500
     # 单次响应超时（秒）
@@ -122,15 +142,17 @@ ai:
       - 你拥有以下工具，必须**真实调用**工具后再回答，不要凭印象编造数字：
         · searchPhotos / describePhoto —— 按关键词或描述查找照片
         · queryAnniversaries / searchAnniversaryByName / getCountdownByName —— 纪念日查询
-        · prepareCreateAnniversary / confirmCreateAnniversary —— 新建纪念日（两步骤确认）
+        · collectAnniversaryField —— 逐步收集纪念日字段（name/date/recurring/remindDays/description），每收到用户一个字段值就调一次
+        · checkAnniversaryDraft —— 检查当前纪念日草稿是否齐全（**收齐所有字段后必须调用**；返回 status=READY 才说明可以进入确认阶段）
+        · prepareCreateAnniversary / confirmCreateAnniversary —— 新建纪念日（**必须**仅在 checkAnniversaryDraft 返回 status=READY 之后调用）
         · listAlbums / searchAlbumByName —— 相册查询
         · getUserStats —— 获取照片总数、相册数、城市数、在一起天数
-        · getMyProfile —— 查询当前用户的昵称、手机号（脱敏）、邮箱
+        · getMyProfile —— 查询当前用户的昵称、手机号（脱敏）、邮箱、性别（gender/genderLabel）
         · prepareUpdateNickname / confirmUpdateNickname —— 修改昵称（两步骤确认）
         · prepareUpdatePhone / confirmUpdatePhone —— 修改手机号（两步骤确认）
         · prepareUpdateEmail / confirmUpdateEmail —— 修改邮箱（两步骤确认）
         · today / recentDays / monthRange / getCurrentTime —— 时间与日期范围
-        · getPartnerInfo —— 双方昵称、绑定日期、在一起天数、城市（称呼对方前先调用）
+        · getPartnerInfo —— 双方昵称、绑定日期、在一起天数、城市、双方性别（meGender/meGenderLabel、partnerGender/partnerGenderLabel），称呼对方前先调用
         · getTodayMood / recordMood —— 今日心情打卡（直接覆盖，无需二次确认）
         · listReminders / prepareSetReminder / confirmSetReminder —— 纪念日提醒（两步骤确认）
         · getPhotoTimeline —— 最近 N 个月的照片数量趋势
@@ -144,6 +166,9 @@ ai:
       - 当用户问到"我们一共多少照片/相册/纪念日/城市/在一起多久"——**必须**调用 getUserStats 后再回答，绝不能凭空编造数字。
       - 当用户问到"今天几号/今天周几/还有几天到 XX"——**必须**调用 getCurrentTime 或 today 拿真实日期，绝不能凭印象猜。
       - 当用户称呼伴侣/对方时——**先调用** getPartnerInfo 拿到昵称再称呼，不要叫"用户/对方"。
+      - 当用户问"我的性别/我是男是女/我是男生还是女生/我是男是女"——**必须**先调用 getMyProfile，读取 gender 与 genderLabel，再如实告知。如果 gender 为 0（保密），告诉用户"你还没有设置哦，可以去账户设置里设置一下～"。
+      - 当用户问"我伴侣/对象的性别"——**必须**先调用 getPartnerInfo，读取 partnerGender 与 partnerGenderLabel，再如实告知。同样保密值用 0。
+      - 新建纪念日时，**必须**严格遵守以下流程：**禁止**在已收齐所有字段后仍反复调用 collectAnniversaryField；只要草稿字段齐全就**必须**立即调用 checkAnniversaryDraft，根据返回的 status 决定下一步：status=READY 才能进入 prepareCreateAnniversary / confirmCreateAnniversary 确认阶段，否则继续按缺失字段调用 collectAnniversaryField 补全。
       - 当用户说"修改我的昵称/手机号/邮箱"或"设置纪念日提醒"时，**必须**走两步骤：
         · 先调用对应 prepare* 工具拿到 confirm_token；prepare 返回 CONFIRM_REQUIRED 表示**数据库尚未修改**。
         · 向用户复述"将 X 改为 Y，是否确认？"，等待用户明确说"确认/同意/好的"等语义相似的词语。
@@ -151,6 +176,31 @@ ai:
         · **绝对禁止**：在用户确认前直接调用 confirm*，或在未真正调用 confirm* 的情况下告诉用户"已修改/完成/成功"。
       - 心情打卡（recordMood）属于日常轻操作，无需二次确认，可直接调用。
       - 不要在回复里提"工具/function call"等术语，对用户而言只是你的"小本本"。
+
+    # 化妆建议专用模型（多模态 Qwen3.8），独立于通用 ChatModel
+    # 可覆盖 API Key（私有部署场景）、模型名与温度
+    makeover:
+      enabled: true
+      api-key: ${DASHSCOPE_MAKEOVER_API_KEY:${ai.dashscope.api-key}}
+      # Qwen3 多模态对话模型（图像+文本→文本 JSON）
+      # qwen3.8-flash：Flash 系列中速度最快，1M 上下文，128K 输出，结构化输出 ✓，价格 1元/1M 输入
+      # 可选：qwen3.7-plus（更准）/ qwen3-vl-flash（较旧 VL）
+      model-name: ${DASHSCOPE_MAKEOVER_MODEL:qwen3.7-flash-2026-07-15}
+      temperature: 0.5
+      max-tokens: 2000
+      timeout-seconds: 60
+
+    # 改造图生成模型（wanx 图像编辑）：与 Stage1 共用同一个 DashScope 账户/Key
+    image-edit:
+      enabled: true
+      api-key: ${DASHSCOPE_MAKEOVER_API_KEY:${ai.dashscope.api-key}}
+      # 图像编辑模型（图像+prompt→图像）：wanx2.1-imageedit / wanx2.0-imageedit
+      model-name: ${DASHSCOPE_MAKEOVER_IMAGE_MODEL:wanx2.1-imageedit}
+      style: ${DASHSCOPE_MAKEOVER_IMAGE_STYLE:<repaint>}
+      # 输出尺寸 1024*1024
+      size: 1024*1024
+      # 超时秒数
+      timeout-seconds: 90
 
 logging:
   level:
@@ -161,3 +211,20 @@ management:
     web:
       exposure:
         include: startup
+
+# AI 化妆建议配置
+makeover:
+  # 单文件最大体积（前端+OSS 鉴权校验用）
+  max-image-size: 8MB
+  # 每个账户每月免费次数；VIP 档位在此基础上叠加额外次数
+  # 周卡 +2 / 月卡 +6 / 季卡 +9 / 年卡 +13 / 永久不限量，见 VipConstant.Tier#makeoverBonus
+  monthly-free-quota: ${MAKEOVER_MONTHLY_FREE_QUOTA:3}
+  # 单用户并发上限（防刷）
+  user-concurrent-limit: 3
+  # 阶段超时
+  analyze-timeout-seconds: 60
+  image-edit-timeout-seconds: 90
+  # 重试
+  retry-max: 1
+  # 改造图模型：dashscope-wanx / stable-diffusion / meitu
+  image-provider: dashscope-wanx

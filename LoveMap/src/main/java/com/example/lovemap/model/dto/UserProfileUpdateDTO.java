@@ -26,6 +26,11 @@ public class UserProfileUpdateDTO {
     private String email;
 
     /**
+     * 性别：0-未知/未设置，1-男，2-女
+     */
+    private Integer gender;
+
+    /**
      * 当前密码
      */
     private String password;

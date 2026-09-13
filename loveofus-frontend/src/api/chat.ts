@@ -16,7 +16,12 @@ export interface ChatMessageVO {
   senderId: number
   receiverId: number
   content: string
+  /** 卡片主图 URL（msg_type=5 时为改造图） */
+  imageUrl?: string
+  /** 消息类型：1=文本 / 5=妆造卡片 */
   msgType?: number
+  /** 卡片附加 JSON（msg_type=5 时存 faceFeatures + suggestions 摘要） */
+  extraJson?: string
   isRead?: number
   createdAt?: string
   readAt?: string | null
@@ -45,7 +50,9 @@ export interface WsChatMessage {
   senderId?: number
   receiverId?: number
   content?: string
+  imageUrl?: string
   msgType?: number
+  extraJson?: string
   isRead?: number
   lastReadId?: number
   createdAt?: string
@@ -101,6 +108,22 @@ export function leaveChatPage() {
  */
 export function clearChatHistory() {
   return request.post<number>('/chat/clear-local')
+}
+
+/**
+ * 在线状态 VO
+ */
+export interface OnlineStatusVO {
+  onlineCount: number
+  partnerId: number | null
+  partnerOnline: boolean
+}
+
+/**
+ * 查询伴侣在线状态
+ */
+export function fetchOnlineStatus() {
+  return request.get<OnlineStatusVO>('/chat/online-status')
 }
 
 /**

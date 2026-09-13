@@ -36,4 +36,19 @@ public final class UserConstant {
      */
     public static final String DEFAULT_AVATAR_URL =
             "https://allenxjl.oss-cn-beijing.aliyuncs.com/avatar/3a7b1ac1b22a345ad56bc8a302cf3af775aa8372f4b7-1xJO27_fw1200webp.webp";
+
+    /**
+     * 性别：未知/未设置
+     */
+    public static final int GENDER_UNKNOWN = 0;
+
+    /**
+     * 性别：男
+     */
+    public static final int GENDER_MALE = 1;
+
+    /**
+     * 性别：女
+     */
+    public static final int GENDER_FEMALE = 2;
 }

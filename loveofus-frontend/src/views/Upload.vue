@@ -159,11 +159,12 @@
 <script setup lang="ts">
 import BottomTab from '@/components/BottomTab.vue'
 import { ref, reactive, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { showToast } from 'vant'
 import dayjs from 'dayjs'
 import { uploadPhoto } from '@/api/photo'
 import { getAlbums, createAlbum, addPhotosToAlbum } from '@/api/album'
+import { achieveMustItem } from '@/api/mustList'
 import type { UploaderFileListItem } from 'vant'
 import type { Album } from '@/types'
 import { provinces } from '@/data/regions'
@@ -366,7 +367,23 @@ const albumPickerColumns = computed(() => {
 
 onMounted(() => {
   loadAlbums()
+  applyRouteContext()
 })
+
+// ==================== 从 URL 接收来源（必做 100 件跳转场景） ====================
+const route = useRoute()
+
+function applyRouteContext() {
+  // 从 "必做 100 件" 跳转过来时：
+  //   ?source=must-item&itemId=must_19&itemTitle=在人群中偷偷接吻
+  if (route.query.source === 'must-item') {
+    const itemTitle = String(route.query.itemTitle || '')
+    if (itemTitle && !form.description) {
+      // 把必做小事的标题作为描述前缀，引导用户填相关回忆
+      form.description = `📍 ${itemTitle}：`
+    }
+  }
+}
 
 async function loadAlbums() {
   try {
@@ -485,8 +502,25 @@ async function onSubmit() {
       await addPhotosToAlbum(selectedAlbumId.value, uploadedIds)
     }
 
+    // 来自"必做 100 件"的上传：把 photoIds 关联到对应小事
+    if (route.query.source === 'must-item' && route.query.itemId && uploadedIds.length > 0) {
+      const itemId = Number(route.query.itemId)
+      try {
+        await achieveMustItem(itemId, {
+          photoIds: uploadedIds.map(Number)
+        })
+      } catch {
+        // 关联失败不阻断上传流程
+      }
+    }
+
     showToast('上传成功')
-    router.push('/home')
+    // 来自必做的上传：回到心动页的必做 Tab
+    if (route.query.source === 'must-item') {
+      router.push({ path: '/love-hub', query: { tab: 'must' } })
+    } else {
+      router.push('/home')
+    }
   } catch (error) {
     showToast('上传失败')
   } finally {

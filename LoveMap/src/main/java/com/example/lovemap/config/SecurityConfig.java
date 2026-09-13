@@ -65,6 +65,10 @@ public class SecurityConfig {
                 ).permitAll()
                 // Swagger 文档
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                // VIP 顾问开通接口：无 JWT，由 VipController 校验 X-Vip-Admin-Token
+                .requestMatchers("/vip/admin/**").permitAll()
+                // 本地文件存储（仅当 file.storage=local 时真正暴露访问；OSS 模式下此路径下没有文件）
+                .requestMatchers("/uploads/**").permitAll()
                 // 其他请求需要认证
                 .anyRequest().authenticated()
             )

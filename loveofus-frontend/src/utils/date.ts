@@ -36,3 +36,28 @@ export function getRelativeTime(date: string | Date | undefined | null): string 
   const d = dayjs(date)
   return d.isValid() ? d.fromNow() : ''
 }
+
+/**
+ * 每天 0 点（本地时区）触发一次回调，用于跨天后刷新按天计算的数据（如纪念日倒计时）。
+ * 返回取消函数。
+ */
+export function scheduleDailyRefresh(callback: () => void): () => void {
+  let timer: number | null = null
+
+  const arm = () => {
+    // 0:00:05 触发，避开与后端 0 点缓存过期/定时任务撞在同一瞬间
+    const delay = dayjs().add(1, 'day').startOf('day').add(5, 'second').diff(dayjs())
+    timer = window.setTimeout(() => {
+      callback()
+      arm()
+    }, delay)
+  }
+
+  arm()
+  return () => {
+    if (timer !== null) {
+      window.clearTimeout(timer)
+      timer = null
+    }
+  }
+}

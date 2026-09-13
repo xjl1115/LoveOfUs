@@ -9,6 +9,14 @@ export interface UserInfo {
   partner?: UserInfo
   relationshipStart?: string
   isBound: boolean
+  /** 性别：0-未知/未设置，1-男，2-女 */
+  gender?: number
+  /** VIP 等级：0-普通用户，1-周卡，2-月卡，3-季卡，4-年卡，5-永久 */
+  vipLevel?: number
+  /** VIP 等级名称 */
+  vipLevelName?: string
+  /** VIP 到期时间，未开通或永久卡为空 */
+  vipExpireAt?: string | null
 }
 
 // 照片类型

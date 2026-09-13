@@ -190,7 +190,9 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         ack.setSenderId(entity.getSenderId());
         ack.setReceiverId(entity.getReceiverId());
         ack.setContent(entity.getContent());
+        ack.setImageUrl(entity.getImageUrl());
         ack.setMsgType(entity.getMsgType());
+        ack.setExtraJson(entity.getExtraJson());
         ack.setIsRead(entity.getIsRead());
         ack.setCreatedAt(entity.getCreatedAt().toString());
         sendTo(session, userId, ack);
@@ -220,13 +222,17 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         if (affected == 0) {
             return; // 没有未读消息，无需通知
         }
-        // 查询已读到的最大 ID（用于已读回执）
+        // 查询"我发给 partner 的消息中已读到的最大 ID"，让对方消息列表能据此标"已读"
+        // 修复：原逻辑误查 partner→user 的方向，导致 maxReadId 取值错误，前端 SSE 已读永远不刷新
         Long maxReadId = chatMessageMapper.selectConversation(userId, Math.toIntExact(user.getPartnerId()), 0, Integer.MAX_VALUE)
                 .stream()
-                .filter(m -> m.getSenderId().equals(user.getPartnerId()) && m.getReceiverId().equals(userId))
+                .filter(m -> m.getSenderId().equals(userId) && m.getReceiverId().equals(user.getPartnerId()) && m.getIsRead() != null && m.getIsRead() == 1)
                 .map(ChatMessage::getId)
                 .max(Long::compareTo)
                 .orElse(null);
+        if (maxReadId == null) {
+            return; // 没有可标记已读的消息，无需推送
+        }
 
         WsChatMessage out = new WsChatMessage();
         out.setType("READ");

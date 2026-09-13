@@ -25,6 +25,7 @@ import com.example.lovemap.model.vo.UnbindStatusVO;
 import com.example.lovemap.service.AsyncMailService;
 import com.example.lovemap.service.AuthService;
 import com.example.lovemap.service.RateLimiterService;
+import com.example.lovemap.service.SseService;
 import com.example.lovemap.utils.JwtUtils;
 import com.example.lovemap.utils.RandomCaptcha;
 import com.example.lovemap.utils.TokenUtils;
@@ -66,6 +67,7 @@ public class AuthServiceImpl implements AuthService {
     private final TokenUtils tokenUtils;
     private final ChatSessionRegistry chatSessionRegistry;
     private final ChatPresenceRegistry chatPresenceRegistry;
+    private final SseService sseService;
 
     /**
      * 验证码过期时间（秒），从配置文件注入
@@ -406,6 +408,19 @@ public class AuthServiceImpl implements AuthService {
             chatPresenceRegistry.leave(userId);
             if (closed > 0) {
                 log.info("退出登录 - 已关闭 WebSocket, userId:{}, count:{}", userId, closed);
+            }
+            // 6. 通过 SSE 实时通知伴侣：自己已离线，前端聊天页右上角应刷新为“离线”
+            //    必须在 WS 关闭、注册表清理之后推送，否则推送的"在线"是旧值
+            try {
+                Long partnerId = user == null ? null : user.getPartnerId();
+                if (partnerId != null) {
+                    Map<String, Object> payload = new HashMap<>();
+                    payload.put("partnerId", userId);
+                    payload.put("online", false);
+                    sseService.sendEvent(partnerId.intValue(), "partner-online-change", payload);
+                }
+            } catch (Exception e) {
+                log.warn("退出登录推送伴侣在线状态 SSE 异常, userId:{}", userId, e);
             }
         } catch (Exception e) {
             // WS 清理失败不影响登出主流程
@@ -855,6 +870,19 @@ public class AuthServiceImpl implements AuthService {
         String refreshToken = jwtUtils.createRefreshToken(claims);
 
         LoginResultVO resultVO = getLoginResultVO(user, token, refreshToken);
+        // 登录成功：通过 SSE 通知伴侣自己已上线，对端聊天页右上角应刷新为“在线”
+        // 失败不影响登录主流程
+        try {
+            Long partnerId = user.getPartnerId();
+            if (partnerId != null) {
+                Map<String, Object> payload = new HashMap<>();
+                payload.put("partnerId", user.getId());
+                payload.put("online", true);
+                sseService.sendEvent(partnerId.intValue(), "partner-online-change", payload);
+            }
+        } catch (Exception e) {
+            log.warn("登录推送伴侣在线状态 SSE 异常, userId:{}", user.getId(), e);
+        }
         return Result.success("登录成功", resultVO);
     }
 

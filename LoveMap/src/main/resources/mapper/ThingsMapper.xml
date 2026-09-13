@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.lovemap.mapper.ThingsMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.lovemap.model.entity.Things">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="description" property="description"/>
+        <result column="icon" property="icon"/>
+        <result column="completed" property="completed"/>
+    </resultMap>
+
+    <sql id="BaseColumns">
+        id, name, description, icon, completed
+    </sql>
+
+    <insert id="batchInsert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO things (name, description, icon, completed) VALUES
+        <foreach collection="list" item="it" separator=",">
+            (#{it.name}, #{it.description}, #{it.icon}, #{it.completed})
+        </foreach>
+    </insert>
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/> FROM things
+        ORDER BY id ASC
+    </select>
+
+    <select id="countAll" resultType="long">
+        SELECT COUNT(*) FROM things
+    </select>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/> FROM things
+        WHERE id = #{id}
+    </select>
+
+    <update id="updateCompleted">
+        UPDATE things SET completed = #{completed} WHERE id = #{id}
+    </update>
+
+</mapper>

@@ -8,7 +8,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @EnableScheduling
 @SpringBootApplication
-@MapperScan("com.example.lovemap.mapper")
+@MapperScan({
+        "com.example.lovemap.mapper",
+        "com.example.lovemap.makeover.mapper"
+})
 public class LoveMapApplication {
 
     public static void main(String[] args) {

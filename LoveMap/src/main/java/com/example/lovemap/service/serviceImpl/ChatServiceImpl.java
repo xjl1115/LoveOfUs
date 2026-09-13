@@ -203,10 +203,14 @@ public class ChatServiceImpl implements ChatService {
         vo.setSenderId(m.getSenderId());
         vo.setReceiverId(m.getReceiverId());
         vo.setContent(m.getContent());
+        vo.setImageUrl(m.getImageUrl());
         vo.setMsgType(m.getMsgType());
+        vo.setExtraJson(m.getExtraJson());
         vo.setIsRead(m.getIsRead());
         vo.setCreatedAt(m.getCreatedAt());
         vo.setReadAt(m.getReadAt());
+        vo.setRevoked(m.getRevoked());
+        vo.setRevokedAt(m.getRevokedAt());
         return vo;
     }
 }

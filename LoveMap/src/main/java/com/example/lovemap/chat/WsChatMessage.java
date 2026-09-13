@@ -39,8 +39,14 @@ public class WsChatMessage {
     /** 消息内容 */
     private String content;
 
-    /** 消息类型：1=文本 */
+    /** 卡片主图 URL（msg_type=5 时为改造图） */
+    private String imageUrl;
+
+    /** 消息类型：1=文本 / 5=妆造卡片 */
     private Integer msgType;
+
+    /** 卡片附加 JSON（msg_type=5 时存 faceFeatures + suggestions 摘要） */
+    private String extraJson;
 
     /** 是否已读 */
     private Integer isRead;

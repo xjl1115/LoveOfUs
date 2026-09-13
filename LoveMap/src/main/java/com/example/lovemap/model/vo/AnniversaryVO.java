@@ -50,8 +50,9 @@ public class AnniversaryVO {
 
         // 如果是重复性纪念日，计算下一次的日期
         if (Boolean.TRUE.equals(isRecurring)) {
+            // 当天算 0 天（与定时提醒任务、AI 工具口径一致），仅当今年已过才顺延到明年
             nextAnniversary = anniversaryDate.withYear(today.getYear());
-            if (nextAnniversary.isBefore(today) || nextAnniversary.isEqual(today)) {
+            if (nextAnniversary.isBefore(today)) {
                 nextAnniversary = nextAnniversary.plusYears(1);
             }
         }

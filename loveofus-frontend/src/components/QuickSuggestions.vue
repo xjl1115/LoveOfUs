@@ -23,6 +23,8 @@ export interface QuickQuestion {
   icon: string
   text: string
   tag: string
+  /** 若设置，点击时直接跳转路由（不走 onSend），用于直达入口 */
+  routerLink?: string
 }
 
 defineProps<{

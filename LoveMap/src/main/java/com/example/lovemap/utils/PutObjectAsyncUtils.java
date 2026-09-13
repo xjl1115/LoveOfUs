@@ -10,8 +10,10 @@ import com.aliyun.sdk.service.oss2.models.DeleteObjectResult;
 import com.aliyun.sdk.service.oss2.models.PutObjectRequest;
 import com.aliyun.sdk.service.oss2.models.PutObjectResult;
 import com.aliyun.sdk.service.oss2.transport.BinaryData;
+import com.example.lovemap.utils.storage.FileStorage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -24,10 +26,13 @@ import java.util.UUID;
 /**
  * 阿里云OSS文件上传工具类
  * 支持头像、合同文件等异步上传
+ * <p>
+ * 实现 {@link FileStorage} 接口；当 {@code file.storage=oss}（默认）时启用。
  */
 @Slf4j
 @Component
-public class PutObjectAsyncUtils {
+@ConditionalOnProperty(name = "file.storage", havingValue = "oss", matchIfMissing = true)
+public class PutObjectAsyncUtils implements FileStorage {
 
     /**
      * 允许的图片类型
@@ -77,6 +82,7 @@ public class PutObjectAsyncUtils {
      * @throws IOException 文件读取异常
      * @throws IllegalArgumentException 文件校验失败
      */
+    @Override
     public String uploadAvatar(MultipartFile file, Integer userId) throws IOException {
         // 1. 参数校验
         validateAvatarFile(file);
@@ -127,6 +133,7 @@ public class PutObjectAsyncUtils {
      * @return 文件访问URL
      * @throws IOException 文件读取异常
      */
+    @Override
     public String uploadFile(MultipartFile file, String objectKey) throws IOException {
         CredentialsProvider provider = new EnvironmentVariableCredentialsProvider();
 
@@ -149,6 +156,32 @@ public class PutObjectAsyncUtils {
         } catch (Exception e) {
             handleUploadException(e);
             throw new RuntimeException("文件上传失败", e);
+        }
+    }
+
+    /**
+     * 上传字节流到 OSS（用于 AI 生成的改造图等无 MultipartFile 场景）
+     *
+     * @param bytes       文件字节
+     * @param objectKey   OSS 对象键
+     * @param contentType MIME，如 image/png
+     * @return 文件访问 URL
+     */
+    public String uploadBytes(byte[] bytes, String objectKey, String contentType) {
+        CredentialsProvider provider = new EnvironmentVariableCredentialsProvider();
+        try (OSSAsyncClient client = getDefaultAsyncClient(endpoint, region, provider)) {
+            PutObjectResult result = client.putObjectAsync(PutObjectRequest.newBuilder()
+                    .bucket(bucket)
+                    .key(objectKey)
+                    .body(BinaryData.fromBytes(bytes))
+                    .contentType(contentType)
+                    .build()).get();
+            log.info("字节流上传成功, statusCode: {}, requestId: {}, eTag: {}, key={}",
+                    result.statusCode(), result.requestId(), result.eTag(), objectKey);
+            return buildFileUrl(objectKey);
+        } catch (Exception e) {
+            handleUploadException(e);
+            throw new RuntimeException("字节流上传失败", e);
         }
     }
 
@@ -273,7 +306,16 @@ public class PutObjectAsyncUtils {
      *
      * @param objectKey OSS对象键
      */
+    /**
+     * 已弃用：请使用 {@link #delete(String)}（实现 FileStorage 接口统一语义）。
+     */
+    @Deprecated
     public void deleteFile(String objectKey) {
+        delete(objectKey);
+    }
+
+    @Override
+    public void delete(String objectKey) {
         CredentialsProvider provider = new EnvironmentVariableCredentialsProvider();
 
         try (OSSAsyncClient client = getDefaultAsyncClient(endpoint, region, provider)) {

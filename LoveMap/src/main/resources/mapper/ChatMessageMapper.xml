@@ -7,7 +7,9 @@
         <result property="senderId" column="sender_id"/>
         <result property="receiverId" column="receiver_id"/>
         <result property="content" column="content"/>
+        <result property="imageUrl" column="image_url"/>
         <result property="msgType" column="msg_type"/>
+        <result property="extraJson" column="extra_json"/>
         <result property="isRead" column="is_read"/>
         <result property="readAt" column="read_at"/>
         <result property="createdAt" column="created_at"/>
@@ -17,21 +19,22 @@
     </resultMap>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO chat_message (sender_id, receiver_id, content, msg_type, is_read, read_at, created_at)
-        VALUES (#{senderId}, #{receiverId}, #{content},
-                IFNULL(#{msgType}, 1), IFNULL(#{isRead}, 0),
-                #{readAt}, IFNULL(#{createdAt}, CURRENT_TIMESTAMP))
+        INSERT INTO chat_message (sender_id, receiver_id, content, image_url, msg_type, extra_json, is_read, read_at, created_at)
+        VALUES (#{senderId}, #{receiverId}, #{content}, #{imageUrl},
+                IFNULL(#{msgType}, 1), #{extraJson},
+                IFNULL(#{isRead}, 0), #{readAt}, IFNULL(#{createdAt}, CURRENT_TIMESTAMP))
     </insert>
 
     <select id="selectById" resultMap="chatMessageMap">
-        SELECT id, sender_id, receiver_id, content, msg_type, is_read, read_at, created_at,
+        SELECT id, sender_id, receiver_id, content, image_url, msg_type, extra_json,
+               is_read, read_at, created_at,
                is_deleted, revoked, revoked_at
         FROM chat_message WHERE id = #{id}
     </select>
 
     <select id="selectConversation" resultMap="chatMessageMap">
-        SELECT m.id, m.sender_id, m.receiver_id, m.content, m.msg_type, m.is_read, m.read_at,
-               m.created_at, m.is_deleted, m.revoked, m.revoked_at
+        SELECT m.id, m.sender_id, m.receiver_id, m.content, m.image_url, m.msg_type, m.extra_json,
+               m.is_read, m.read_at, m.created_at, m.is_deleted, m.revoked, m.revoked_at
         FROM chat_message m
         WHERE ((m.sender_id = #{userId} AND m.receiver_id = #{peerId})
             OR (m.sender_id = #{peerId} AND m.receiver_id = #{userId}))

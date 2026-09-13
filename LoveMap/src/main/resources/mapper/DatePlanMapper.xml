@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.lovemap.mapper.DatePlanMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.lovemap.model.entity.DatePlan">
+        <id column="id" property="id"/>
+        <result column="group_id" property="groupId"/>
+        <result column="title" property="title"/>
+        <result column="plan_date" property="planDate"/>
+        <result column="time_slot" property="timeSlot"/>
+        <result column="scenes" property="scenes"/>
+        <result column="location" property="location"/>
+        <result column="location_suggestion" property="locationSuggestion"/>
+        <result column="budget" property="budget"/>
+        <result column="description" property="description"/>
+        <result column="reason" property="reason"/>
+        <result column="tips" property="tips"/>
+        <result column="photos" property="photos"/>
+        <result column="status" property="status"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="is_deleted" property="isDeleted"/>
+        <result column="deleted_at" property="deletedAt"/>
+    </resultMap>
+
+    <sql id="BaseColumns">
+        id, group_id, title, plan_date, time_slot, scenes, location, location_suggestion,
+        budget, description, reason, tips, photos, status,
+        created_by, created_at, updated_at, is_deleted, deleted_at
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO date_plans (group_id, title, plan_date, time_slot, scenes, location, location_suggestion,
+                                budget, description, reason, tips, photos, status,
+                                created_by, created_at, updated_at, is_deleted, deleted_at)
+        VALUES (#{groupId}, #{title}, #{planDate}, #{timeSlot}, #{scenes}, #{location}, #{locationSuggestion},
+                #{budget}, #{description}, #{reason}, #{tips}, #{photos}, #{status},
+                #{createdBy}, NOW(), NOW(), 0, NULL)
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/> FROM date_plans
+        WHERE id = #{id} AND is_deleted = 0
+    </select>
+
+    <!-- 归属范围：情侣组数据，或未绑定情侣时按创建人归属的个人数据 -->
+    <sql id="GroupOrUserScope">
+        (group_id = #{groupId} OR (group_id IS NULL AND created_by = #{userId}))
+    </sql>
+
+    <select id="selectByIdAndGroupOrUser" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/> FROM date_plans
+        WHERE id = #{id} AND is_deleted = 0
+          AND <include refid="GroupOrUserScope"/>
+    </select>
+
+    <select id="selectByGroupOrUser" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/> FROM date_plans
+        WHERE is_deleted = 0
+          AND <include refid="GroupOrUserScope"/>
+        ORDER BY status ASC, plan_date ASC, created_at DESC
+    </select>
+
+    <update id="update">
+        UPDATE date_plans
+        SET title = #{plan.title},
+            plan_date = #{plan.planDate},
+            time_slot = #{plan.timeSlot},
+            scenes = #{plan.scenes},
+            location = #{plan.location},
+            location_suggestion = #{plan.locationSuggestion},
+            budget = #{plan.budget},
+            description = #{plan.description},
+            reason = #{plan.reason},
+            tips = #{plan.tips},
+            photos = #{plan.photos},
+            updated_at = NOW()
+        WHERE id = #{plan.id} AND is_deleted = 0
+          AND (group_id = #{plan.groupId} OR (group_id IS NULL AND created_by = #{userId}))
+    </update>
+
+    <update id="updateStatus">
+        UPDATE date_plans
+        SET status = #{status},
+            updated_at = NOW()
+        WHERE id = #{id} AND is_deleted = 0
+          AND (group_id = #{groupId} OR (group_id IS NULL AND created_by = #{userId}))
+    </update>
+
+    <update id="softDelete">
+        UPDATE date_plans
+        SET is_deleted = 1,
+            deleted_at = NOW(),
+            updated_at = NOW()
+        WHERE id = #{id} AND is_deleted = 0
+          AND (group_id = #{groupId} OR (group_id IS NULL AND created_by = #{userId}))
+    </update>
+
+</mapper>

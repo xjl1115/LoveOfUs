@@ -1,0 +1,37 @@
+<?xml version="1.0" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.lovemap.makeover.mapper.MakeoverTaskMapper">
+
+    <insert id="insert" parameterType="com.example.lovemap.model.entity.MakeoverTask"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO makeover_task
+            (record_id, stage, status, retry_count, created_at)
+        VALUES
+            (#{recordId}, #{stage}, #{status}, #{retryCount}, NOW())
+    </insert>
+
+    <update id="markRunning">
+        UPDATE makeover_task
+        SET status = 1, started_at = #{startedAt}
+        WHERE id = #{id}
+    </update>
+
+    <update id="markSuccess">
+        UPDATE makeover_task
+        SET status = 2, finished_at = #{finishedAt}
+        WHERE id = #{id}
+    </update>
+
+    <update id="markFailed">
+        UPDATE makeover_task
+        SET status = 3, error_message = #{errorMessage}, finished_at = #{finishedAt}
+        WHERE id = #{id}
+    </update>
+
+    <update id="incrementRetry">
+        UPDATE makeover_task
+        SET retry_count = retry_count + 1
+        WHERE id = #{id}
+    </update>
+
+</mapper>

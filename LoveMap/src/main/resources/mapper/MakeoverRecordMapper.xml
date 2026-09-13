@@ -1,0 +1,106 @@
+<?xml version="1.0" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.lovemap.makeover.mapper.MakeoverRecordMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.lovemap.model.entity.MakeoverRecord">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="partner_id" property="partnerId"/>
+        <result column="original_url" property="originalUrl"/>
+        <result column="original_key" property="originalKey"/>
+        <result column="scene_code" property="sceneCode"/>
+        <result column="scene_text" property="sceneText"/>
+        <result column="face_features" property="faceFeatures"/>
+        <result column="suggestions" property="suggestions"/>
+        <result column="summary" property="summary"/>
+        <result column="after_url" property="afterUrl"/>
+        <result column="after_key" property="afterKey"/>
+        <result column="status" property="status"/>
+        <result column="error_message" property="errorMessage"/>
+        <result column="cost_ms" property="costMs"/>
+        <result column="deleted" property="deleted"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="BaseColumns">
+        id, user_id, partner_id, original_url, original_key,
+        scene_code, scene_text, face_features, suggestions, summary,
+        after_url, after_key, status, error_message, cost_ms,
+        deleted, created_at, updated_at
+    </sql>
+
+    <insert id="insert" parameterType="com.example.lovemap.model.entity.MakeoverRecord"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO makeover_record
+            (user_id, partner_id, original_url, original_key,
+             scene_code, scene_text, suggestions, status, deleted,
+             created_at, updated_at)
+        VALUES
+            (#{userId}, #{partnerId}, #{originalUrl}, #{originalKey},
+             #{sceneCode}, #{sceneText}, #{suggestions}, #{status}, #{deleted},
+             NOW(), NOW())
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM makeover_record
+        WHERE id = #{id} AND deleted = 0
+    </select>
+
+    <update id="updateStatus">
+        UPDATE makeover_record
+        SET status = #{status},
+            error_message = #{errorMessage},
+            cost_ms = #{costMs},
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateAiText">
+        UPDATE makeover_record
+        SET face_features = #{faceFeatures},
+            suggestions = #{suggestions},
+            summary = #{summary},
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateAfterImage">
+        UPDATE makeover_record
+        SET after_url = #{afterUrl},
+            after_key = #{afterKey},
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <update id="softDelete">
+        UPDATE makeover_record
+        SET deleted = 1, updated_at = NOW()
+        WHERE id = #{id} AND user_id = #{userId} AND deleted = 0
+    </update>
+
+    <select id="selectPageByUser" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM makeover_record
+        WHERE user_id = #{userId} AND deleted = 0
+        ORDER BY created_at DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countByUser" resultType="long">
+        SELECT COUNT(*)
+        FROM makeover_record
+        WHERE user_id = #{userId} AND deleted = 0
+    </select>
+
+    <!-- 额度统计不过滤 deleted：删除历史记录不应返还当月额度 -->
+    <select id="countMonthlyByUser" resultType="long">
+        SELECT COUNT(*)
+        FROM makeover_record
+        WHERE user_id = #{userId}
+          AND created_at &gt;= #{start}
+          AND created_at &lt; #{end}
+    </select>
+
+</mapper>

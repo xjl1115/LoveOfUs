@@ -103,4 +103,27 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
+
+    /**
+     * AI 长任务线程池（化妆建议等需要数十秒到数分钟的异步任务）
+     * <p>
+     * 设计要点：
+     * - core/max 较小（2/4）：化妆建议任务涉及 Qwen-VL + DashScope 出图，
+     *   单任务长但并发数受限于 Redis 限流（每分钟 3 次）
+     * - queueCapacity 100：缓冲尖峰提交
+     * - 关闭时优雅等待，避免 SSE 连接被强制中断
+     */
+    @Bean("aiTaskExecutor")
+    public ThreadPoolTaskExecutor aiTaskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(100);
+        executor.setThreadNamePrefix("ai-task-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(120);
+        executor.initialize();
+        return executor;
+    }
 }

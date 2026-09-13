@@ -112,11 +112,20 @@
         {{ selectedMessage.content || selectedMessage.text || '' }}
       </div>
       <div class="detail-actions">
+        <!-- P1-6：纪念日提醒（type=2）专属 CTA：查看对应纪念日详情 / 交给 AI 安排约会 -->
+        <div v-if="selectedMessage.type === 2" class="anniversary-cta">
+          <van-button round type="primary" @click="goAnniversaryDetail">
+            <van-icon name="calendar-o" /> 纪念日详情
+          </van-button>
+          <van-button round plain type="primary" @click="goDatePlan">
+            <van-icon name="like-o" /> AI 安排约会
+          </van-button>
+        </div>
         <van-button
           v-if="!selectedMessage.isRead"
           round
           block
-          type="primary"
+          :type="selectedMessage.type === 2 ? 'default' : 'primary'"
           @click="markAsReadAndClose"
         >
           标为已读
@@ -137,6 +146,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { showToast, showConfirmDialog } from 'vant'
 import {
   getNotificationList,
@@ -148,6 +158,8 @@ import {
   type Notification
 } from '@/api/systemMessage'
 import { useChatUnreadStore } from '@/stores/chatUnread'
+
+const router = useRouter()
 
 // 悬浮按钮位置（默认右下角）
 const DEFAULT_POSITION = { right: 20, bottom: 80 }
@@ -354,6 +366,23 @@ async function deleteMessageAndClose() {
   }
 }
 
+// P1-6：纪念日提醒详情页 → 跳转到 AI 约会策划师（落点在心动 Tab 的约会子页）
+function goDatePlan() {
+  showDetailPopup.value = false
+  router.push({ path: '/love-hub', query: { tab: 'date' } })
+}
+
+// 纪念日提醒详情页 → 打开该条提醒对应的纪念日详情（businessId 由后端随通知下发）
+function goAnniversaryDetail() {
+  const id = selectedMessage.value?.businessId
+  if (!id) {
+    showToast('这条提醒没有关联的纪念日')
+    return
+  }
+  showDetailPopup.value = false
+  router.push({ path: '/profile', query: { open: 'anniversary', id: String(id) } })
+}
+
 // 格式化时间
 function formatTime(dateStr: string) {
   if (!dateStr) return ''
@@ -401,17 +430,9 @@ function registerSseListeners() {
   sseHandlers.push({ event: 'unread-count', fn: onUnreadCount })
   sse.on('unread-count', onUnreadCount)
 
-  // 同步转发聊天未读数到 chatUnread store（保证角标在所有页面实时更新）
-  const onChatUnreadCount = (data: { count: number; partnerId: number }) => {
-    try {
-      const chatUnread = useChatUnreadStore()
-      chatUnread.count = Math.max(0, Number(data?.count) || 0)
-    } catch (e) {
-      console.warn('[SSE] chat-unread-count handler failed', e)
-    }
-  }
-  sseHandlers.push({ event: 'chat-unread-count', fn: onChatUnreadCount })
-  sse.on('chat-unread-count', onChatUnreadCount)
+  // 修复：聊天未读数 SSE 已在 App.vue 全局订阅并写入 chatUnread store，
+  // 此处避免重复订阅导致双重写入/重复 off。
+  void useChatUnreadStore // 保留依赖引用（防止 IDE 自动清理）
 
   const onConnected = () => {
     console.log('[SSE] 消息通知连接已建立')
@@ -682,6 +703,15 @@ onUnmounted(() => {
     .van-button {
       height: 44px;
       font-size: 15px;
+    }
+
+    .anniversary-cta {
+      display: flex;
+      gap: 12px;
+
+      .van-button {
+        flex: 1;
+      }
     }
   }
 }

@@ -20,6 +20,10 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 照片相关 AI 工具
@@ -33,6 +37,9 @@ import java.util.Map;
 public class PhotoTool {
 
     private final PhotoService photoService;
+
+    /** 删除照片的二次确认 token 缓存 */
+    private final Map<String, PendingDeletePhoto> pendingMap = new ConcurrentHashMap<>();
 
     /**
      * 搜索照片（关键词 / 日期范围 / 城市）
@@ -120,6 +127,86 @@ public class PhotoTool {
         }
     }
 
+    // ==================== 写操作（二次确认） ====================
+
+    /**
+     * 删除照片（第一步：返回确认 token）。
+     * <p>
+     * 注意：只有照片上传者本人才能删除。Service 内部已校验 `photo.userId == currentUserId`。
+     */
+    @Tool("删除一张照片（第一步：返回确认 token，不直接写入）。OSS 文件一并清理，不可逆；需要用户在前端二次确认。")
+    public Map<String, Object> prepareDeletePhoto(@P("照片 ID") Long photoId) {
+        Long userId = AiUserContext.requireUserId();
+        log.info("[AI-TOOL] prepareDeletePhoto userId={}, photoId={}", userId, photoId);
+        if (photoId == null) return Map.of("error", "photoId 不能为空");
+
+        // 预览：取元数据回显给用户
+        Result<PhotoDetailVO> detail = photoService.getPhotoDetail(userId.intValue(), photoId);
+        Map<String, Object> preview = new LinkedHashMap<>();
+        preview.put("action", "delete");
+        preview.put("photoId", photoId);
+        if (detail != null && detail.getData() != null) {
+            PhotoDetailVO d = detail.getData();
+            preview.put("takenDate", d.getTakenDate());
+            preview.put("locationName", d.getLocationName());
+            preview.put("city", d.getCity());
+            preview.put("description", d.getDescription());
+            preview.put("storagePath", d.getStoragePath());
+            if (d.getUploader() != null) {
+                preview.put("uploaderId", d.getUploader().getId());
+                preview.put("uploaderNickname", d.getUploader().getNickname());
+            }
+        }
+        preview.put("warning", "OSS 文件和数据库记录会一并清理，不可恢复");
+
+        String token = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+        pendingMap.put(token, new PendingDeletePhoto(userId.intValue(), photoId, System.currentTimeMillis()));
+        new Timer().schedule(new TimerTask() {
+            @Override public void run() { pendingMap.remove(token); }
+        }, 60 * 60 * 1000L);
+
+        return Map.of(
+                "status", "CONFIRM_REQUIRED",
+                "confirm_token", token,
+                "preview", preview,
+                "hint", "⚠️ 尚未删除！这是不可逆操作（OSS 文件一并清理）。请向用户复述以上照片信息并明确请求用户确认。"
+                        + "用户明确说'确认/同意/删吧'后调用 confirmDeletePhoto(token=\"" + token + "\")。"
+                        + "在用户确认前禁止告诉用户'已删除'。"
+        );
+    }
+
+    /**
+     * 删除照片（第二步：用户已确认后真正写入）
+     */
+    @Tool("删除照片第二步：用户已确认后真正写入。必须传入 prepareDeletePhoto 返回的 confirm_token。")
+    public Map<String, Object> confirmDeletePhoto(@P("prepareDeletePhoto 返回的确认 token") String confirmToken) {
+        Long userId = AiUserContext.requireUserId();
+        log.info("[AI-TOOL] confirmDeletePhoto userId={}, token={}", userId, confirmToken);
+        if (confirmToken == null || confirmToken.isBlank()) return Map.of("error", "confirm_token 不能为空");
+
+        PendingDeletePhoto pending = pendingMap.remove(confirmToken);
+        if (pending == null) return Map.of("error", "确认凭证无效或已过期，请重新发起删除");
+        if (!pending.userId.equals(userId.intValue())) return Map.of("error", "确认凭证归属错误");
+        if (System.currentTimeMillis() - pending.createdAtMs > 10 * 60 * 1000L) {
+            return Map.of("error", "确认凭证已过期，请重新发起删除");
+        }
+
+        try {
+            Result<Void> r = photoService.deletePhoto(userId.intValue(), pending.photoId);
+            if (r == null || !r.isSuccess()) {
+                return Map.of("error", r == null ? "null" : r.getMessage());
+            }
+            return Map.of(
+                    "status", "DELETED",
+                    "action", "delete",
+                    "photoId", pending.photoId
+            );
+        } catch (Exception e) {
+            log.error("[AI-TOOL] confirmDeletePhoto 失败", e);
+            return Map.of("error", "删除失败：" + e.getMessage());
+        }
+    }
+
     // ==================== 内部 ====================
 
     private boolean matchesKeyword(TimelinePhotoVO p, String kw) {
@@ -158,4 +245,7 @@ public class PhotoTool {
             return null;
         }
     }
+
+    /** 待删除的照片（含过期机制） */
+    private record PendingDeletePhoto(Integer userId, Long photoId, long createdAtMs) {}
 }

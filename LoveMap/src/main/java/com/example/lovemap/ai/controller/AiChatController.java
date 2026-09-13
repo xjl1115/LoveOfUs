@@ -3,10 +3,12 @@ package com.example.lovemap.ai.controller;
 import com.example.lovemap.ai.context.AiUserContext;
 import com.example.lovemap.ai.dto.ChatRequest;
 import com.example.lovemap.ai.dto.ChatResponse;
+import com.example.lovemap.ai.exception.AiErrorMessages;
 import com.example.lovemap.ai.service.AiChatService;
 import com.example.lovemap.common.Result;
 import com.example.lovemap.mapper.UserMapper;
 import com.example.lovemap.model.entity.User;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -20,6 +22,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * AI 聊天 Controller
@@ -46,6 +50,7 @@ public class AiChatController {
 
     private final AiChatService aiChatService;
     private final UserMapper userMapper;
+    private final ObjectMapper objectMapper;
 
     /**
      * 非流式接口（前端降级用）
@@ -69,29 +74,39 @@ public class AiChatController {
 
         SseEmitter emitter = new SseEmitter(30 * 60 * 1000L);
 
-        aiChatService.chatStream(
-                request,
-                chunk -> write(emitter, "chunk", "{\"text\":\"" + escapeJson(chunk) + "\"}"),
-                (full, images) -> {
-                    // done 帧：附带 AI 答复 + 本轮所有工具返回的图片（供前端气泡以缩略图形式展示）
-                    StringBuilder done = new StringBuilder();
-                    done.append("{\"textLen\":").append(full == null ? 0 : full.length());
-                    if (images != null && !images.isEmpty()) {
-                        done.append(",\"images\":");
-                        done.append(escapeJson(toJsonArray(images)));
+        try {
+            aiChatService.chatStream(
+                    request,
+                    chunk -> writeJson(emitter, "chunk", chunkPayload(chunk)),
+                    (full, images) -> {
+                        // done 帧：附带 AI 答复 + 本轮所有工具返回的图片（供前端气泡以缩略图形式展示）
+                        Map<String, Object> payload = new HashMap<>();
+                        payload.put("textLen", full == null ? 0 : full.length());
+                        if (images != null && !images.isEmpty()) {
+                            payload.put("images", images);
+                        }
+                        writeJson(emitter, "done", payload);
+                        emitter.complete();
+                        AiUserContext.clear();
+                    },
+                    error -> {
+                        log.error("AI 流式响应出错", error);
+                        // 额度不足等异常转成中文文案后再推给前端
+                        writeJson(emitter, "error", errorPayload(AiErrorMessages.toUserMessage(error)));
+                        // 用 complete() 而非 completeWithError()：错误已通过 error 帧告知前端，
+                        // 后者会触发容器异常派发，而此时响应已是 text/event-stream，无法再写 JSON。
+                        emitter.complete();
+                        AiUserContext.clear();
                     }
-                    done.append("}");
-                    write(emitter, "done", done.toString());
-                    emitter.complete();
-                    AiUserContext.clear();
-                },
-                error -> {
-                    log.error("AI 流式响应出错", error);
-                    write(emitter, "error", "{\"message\":\"" + escapeJson(error.getMessage()) + "\"}");
-                    emitter.completeWithError(error);
-                    AiUserContext.clear();
-                }
-        );
+            );
+        } catch (Exception e) {
+            // 兜底：流式启动阶段同步抛出异常（如额度不足）时，同样以 error 帧告知前端
+            log.error("AI 流式响应启动失败", e);
+            writeJson(emitter, "error", errorPayload(AiErrorMessages.toUserMessage(e)));
+            emitter.complete();
+            AiUserContext.clear();
+            return emitter;
+        }
 
         emitter.onCompletion(() -> log.debug("SSE emitter completed, session={}", request.getSessionId()));
         emitter.onTimeout(() -> {
@@ -132,35 +147,42 @@ public class AiChatController {
 
     private void write(SseEmitter emitter, String event, String data) {
         try {
-            emitter.send(SseEmitter.event().name(event).data(data, MediaType.APPLICATION_JSON));
+            // 不再带 MediaType.APPLICATION_JSON，避免 Spring 二次 JSON 包裹
+            // 触发前端 "Expected property name or Y in JSON" (position 26) 解析错误。
+            emitter.send(SseEmitter.event().name(event).data(data));
         } catch (IOException | IllegalStateException e) {
             log.debug("SSE 写入失败（客户端可能已断开）: {}", e.getMessage());
         }
     }
 
-    private String escapeJson(String s) {
-        if (s == null) return "";
-        StringBuilder sb = new StringBuilder(s.length() + 8);
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            switch (c) {
-                case '"' -> sb.append("\\\"");
-                case '\\' -> sb.append("\\\\");
-                case '\n' -> sb.append("\\n");
-                case '\r' -> sb.append("\\r");
-                case '\t' -> sb.append("\\t");
-                default -> {
-                    if (c < 0x20) sb.append(String.format("\\u%04x", (int) c));
-                    else sb.append(c);
-                }
-            }
+    /**
+     * 用统一的 ObjectMapper 序列化数据对象为 JSON 字符串后再写入 SSE。
+     * <p>
+     * 与 {@link #write(SseEmitter, String, String)} 配合，data 字段已是合法 JSON 字符串，
+     * 不要再加 MediaType.APPLICATION_JSON（否则 Spring 会再包一层）。
+     */
+    private void writeJson(SseEmitter emitter, String event, Object payload) {
+        String json;
+        try {
+            json = objectMapper.writeValueAsString(payload);
+        } catch (Exception e) {
+            log.warn("[AI] SSE 序列化失败 event={}", event, e);
+            return;
         }
-        return sb.toString();
+        write(emitter, event, json);
     }
 
-    /** 序列化图片列表为 JSON 字符串（注入 Spring Boot 自带的 ObjectMapper） */
-    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper =
-            new com.fasterxml.jackson.databind.ObjectMapper();
+    private Map<String, Object> chunkPayload(String chunk) {
+        Map<String, Object> map = new HashMap<>(2);
+        map.put("text", chunk == null ? "" : chunk);
+        return map;
+    }
+
+    private Map<String, Object> errorPayload(String message) {
+        Map<String, Object> map = new HashMap<>(2);
+        map.put("message", message == null ? "" : message);
+        return map;
+    }
 
     private String toJsonArray(java.util.List<?> list) {
         try {

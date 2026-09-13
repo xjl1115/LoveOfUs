@@ -27,9 +27,11 @@ public class PartnerTool {
     private final UserMapper userMapper;
 
     /**
-     * 获取当前用户与伴侣的基本信息：昵称、头像、绑定日期、城市、在一起天数
+     * 获取当前用户与伴侣的基本信息：昵称、头像、绑定日期、城市、在一起天数、性别
      */
-    @Tool("获取当前用户与其伴侣（已绑定的情况下）的昵称、头像、所在城市、在一起天数、城市分布。AI 称呼对方时用此工具得到昵称。")
+    @Tool("获取当前用户与其伴侣（已绑定的情况下）的昵称、头像、所在城市、在一起天数、城市分布，"
+            + "以及双方性别（meGender/meGenderLabel、partnerGender/partnerGenderLabel：0-未知/保密 1-男 2-女）。"
+            + "AI 在称呼用户或伴侣、回应涉及性别的问题前必须先调用本工具读取双方性别。")
     public Map<String, Object> getPartnerInfo() {
         Long userId = AiUserContext.requireUserId();
         log.info("[AI-TOOL] getPartnerInfo userId={}", userId);
@@ -42,7 +44,9 @@ public class PartnerTool {
             map.put("meId", me.getId());
             map.put("meNickname", me.getNickname());
             map.put("meAvatar", me.getAvatarUrl());
-            map.put("isBound", Boolean.TRUE.equals(me.getIsBound()));
+            map.put("meGender", me.getGender());
+            map.put("meGenderLabel", genderLabel(me.getGender()));
+            map.put("isBound", isBoundTrue(me.getIsBound()));
             map.put("groupId", me.getGroupId());
 
             // 在一起天数
@@ -67,6 +71,8 @@ public class PartnerTool {
             map.put("partnerId", partner.getId());
             map.put("partnerNickname", partner.getNickname());
             map.put("partnerAvatar", partner.getAvatarUrl());
+            map.put("partnerGender", partner.getGender());
+            map.put("partnerGenderLabel", genderLabel(partner.getGender()));
 
             return map;
         } catch (Exception e) {
@@ -84,5 +90,15 @@ public class PartnerTool {
     private boolean isBoundTrue(Integer v) {
         if (v == null) return false;
         return v == 1 || v == 2; // 1=true; 容忍未来改用2=bound
+    }
+
+    /** 性别代码 -> 可读标签：1-男，2-女，其它（含 null/0）返回"未知" */
+    private static String genderLabel(Integer gender) {
+        if (gender == null) return "未知";
+        return switch (gender) {
+            case 1 -> "男";
+            case 2 -> "女";
+            default -> "未知";
+        };
     }
 }

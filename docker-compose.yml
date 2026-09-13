@@ -1,0 +1,101 @@
+services:
+  mysql:
+    image: mysql:9.2
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-1115}
+      MYSQL_DATABASE: lovemap
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # 首次启动（数据卷为空）时自动按文件名顺序执行 init 目录下的 .sql
+      - ./deploy/mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    # 宿主机调试端口：13306 避免与本机已装的 MySQL 抢 3306
+    ports:
+      - "${MYSQL_PORT:-13306}:3306"
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-1115}", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-1115}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  backend:
+    build: ./LoveMap
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # 宿主机调试端口：容器内 8080，宿主机用 8081 避开 frontend 占用的 HTTP_PORT
+    ports:
+      - "${BACKEND_PORT:-8081}:8080"
+    environment:
+      TZ: Asia/Shanghai
+      # Spring Boot 宽松绑定：SPRING_DATASOURCE_URL 即 spring.datasource.url
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/lovemap?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-1115}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-1115}
+      # 文件存储：oss=阿里云 OSS（应用必需，照片/头像上传硬编码走 OSS；local 模式无法启动）
+      FILE_STORAGE: ${FILE_STORAGE:-oss}
+      FILE_LOCAL_BASE_DIR: /app/uploads
+      FILE_LOCAL_URL_PREFIX: ${FILE_LOCAL_URL_PREFIX:-http://localhost/uploads}
+      # 阿里云 OSS（AK/SK 必填，走 SDK 标准环境变量；endpoint/bucket/region 有默认值）
+      OSS_ENDPOINT: ${OSS_ENDPOINT:-oss-cn-beijing.aliyuncs.com}
+      OSS_BUCKET: ${OSS_BUCKET:-allenxjl}
+      OSS_REGION: ${OSS_REGION:-cn-beijing}
+      ALIBABA_CLOUD_ACCESS_KEY_ID: ${OSS_ACCESS_KEY_ID:?请在 .env 配置 OSS_ACCESS_KEY_ID}
+      ALIBABA_CLOUD_ACCESS_KEY_SECRET: ${OSS_ACCESS_KEY_SECRET:?请在 .env 配置 OSS_ACCESS_KEY_SECRET}
+      # 邮件 SMTP（可选）
+      MAIL_HOST: ${MAIL_HOST:-smtp.qq.com}
+      MAIL_PORT: ${MAIL_PORT:-465}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      # AI 通义千问（不填则 AI 功能返回"功能未开启"）
+      AI_ENABLED: ${AI_ENABLED:-true}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      DASHSCOPE_MODEL: ${DASHSCOPE_MODEL:-}
+      # VIP 顾问开通密钥（必填）：请求头 X-Vip-Admin-Token 校验用；未配置则顾问无法收款后开通
+      VIP_ADMIN_TOKEN: ${VIP_ADMIN_TOKEN:?请在 .env 配置 VIP_ADMIN_TOKEN}
+      # VIP 顾问开通接口对外地址（末尾不带 /），用于生成顾问通知邮件里的开通命令
+      VIP_PUBLIC_BASE_URL: ${VIP_PUBLIC_BASE_URL:-http://localhost:8080}
+    volumes:
+      - uploads-data:/app/uploads            # file.storage=local 的上传文件
+      - exports-data:/app/loveofus/exports   # 导出文件
+
+  frontend:
+    build: ./loveofus-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    volumes:
+      - ./deploy/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+
+volumes:
+  mysql-data:
+  redis-data:
+  uploads-data:
+  exports-data:

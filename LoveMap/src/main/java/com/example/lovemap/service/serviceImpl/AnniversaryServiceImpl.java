@@ -22,6 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -33,6 +36,9 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class AnniversaryServiceImpl implements AnniversaryService {
+
+    /** 上海时区，与 application.yml 及定时任务保持一致 */
+    private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
 
     private final AnniversaryMapper anniversaryMapper;
     private final UserMapper userMapper;
@@ -233,15 +239,28 @@ public class AnniversaryServiceImpl implements AnniversaryService {
     }
 
     /**
-     * 将数据存入缓存（带1天过期时间）
+     * 将数据存入缓存，TTL 到当天 24:00（Asia/Shanghai）为止。
+     * <p>
+     * 缓存里存的是写入时刻算出的 daysUntil，若用固定 1 天 TTL，
+     * 跨天后仍会命中旧值（倒计时不动），只有 0 点的缓存清理任务跑过才会纠正；
+     * 改为凌晨自动过期后，即使 0 点服务掉线，跨天后首次请求也会重新计算。
      */
     private void putToCache(String cacheKey, Object data) {
         try {
             String json = objectMapper.writeValueAsString(data);
-            redisTemplate.opsForValue().set(cacheKey, json, 1, TimeUnit.DAYS);
+            redisTemplate.opsForValue().set(cacheKey, json, secondsUntilNextMidnight(), TimeUnit.SECONDS);
         } catch (JsonProcessingException e) {
             log.warn("序列化缓存失败, key: {}", cacheKey, e);
         }
+    }
+
+    /**
+     * 距离下一个 0 点（Asia/Shanghai）的秒数，最少 60 秒，避免临界写入立刻失效
+     */
+    private long secondsUntilNextMidnight() {
+        LocalDateTime now = LocalDateTime.now(ZONE);
+        long seconds = ChronoUnit.SECONDS.between(now, now.toLocalDate().plusDays(1).atStartOfDay());
+        return Math.max(seconds, 60);
     }
 
     /**

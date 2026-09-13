@@ -20,4 +20,10 @@ public final class AnniversaryConstant {
      * 格式：anniversary:detail:{id}
      */
     public static final String ANNIVERSARY_DETAIL_PREFIX = "anniversary:detail:";
+
+    /**
+     * 纪念日提醒"当日已执行"标记 KEY，值为 yyyy-MM-dd
+     * 用于启动补跑时判断当天 0 点的提醒是否已经跑过
+     */
+    public static final String REMIND_LAST_RUN_KEY = "anniversary:remind:last-run-date";
 }

@@ -38,10 +38,25 @@ const userStore = useUserStore()
 
 /**
  * 1. 未登录不显示（顶层路由守卫会拦截 /ai-chat）
- * 2. AI 服务总开关关闭时显示入口，聊天页内部降级
+ * 2. 底部 7 Tab 已包含「AI聊天」入口，用户访问过一次后即隐藏浮窗，避免双入口
+ * 3. 首次访问时显示引导气泡，之后只在未访问底部 Tab 的情况下出现
  * 直接复用 userStore 的 isLoggedIn，避免和真实 token 存储位置耦合
  */
-const visible = computed(() => userStore.isLoggedIn)
+const BOTTOM_TAB_DISCOVERED_KEY = 'ai_tab_discovered'
+
+const bottomTabDiscovered = ref(localStorage.getItem(BOTTOM_TAB_DISCOVERED_KEY) === '1')
+
+const visible = computed(() => userStore.isLoggedIn && !bottomTabDiscovered.value)
+
+function markBottomTabDiscovered() {
+  if (bottomTabDiscovered.value) return
+  bottomTabDiscovered.value = true
+  try {
+    localStorage.setItem(BOTTOM_TAB_DISCOVERED_KEY, '1')
+  } catch {
+    // ignore
+  }
+}
 
 // ==================== 未读计数 ====================
 
@@ -178,6 +193,9 @@ onMounted(() => {
 
   // 监听自定义事件，供聊天页主动 bump 未读（用户切到别的页面时）
   window.addEventListener('ai-chat:new-message', bumpUnread)
+
+  // 用户在底部 Tab 点击了 AI 聊天 → 标记发现，之后不再显示浮窗
+  window.addEventListener('lovemap:bottom-tab-ai-used', markBottomTabDiscovered)
 })
 
 onBeforeUnmount(() => {

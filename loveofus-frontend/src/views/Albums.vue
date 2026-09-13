@@ -22,12 +22,15 @@
             >
               <div class="album-cover">
                 <img
+                  v-if="album.coverPhotoUrl"
                   v-lazy="{
-                    src: album.coverPhotoUrl || defaultCover,
-                    error: defaultCover
+                    src: album.coverPhotoUrl
                   }"
                   class="cover-image"
                 />
+                <div v-else class="cover-placeholder">
+                  <van-icon name="photo-o" size="36" color="#fff" />
+                </div>
                 <div v-if="album.isAiGenerated" class="ai-badge">AI</div>
               </div>
               <div class="album-info">
@@ -58,12 +61,15 @@
             >
               <div class="album-cover">
                 <img
+                  v-if="album.coverPhotoUrl"
                   v-lazy="{
-                    src: album.coverPhotoUrl || defaultCover,
-                    error: defaultCover
+                    src: album.coverPhotoUrl
                   }"
                   class="cover-image"
                 />
+                <div v-else class="cover-placeholder">
+                  <van-icon name="photo-o" size="36" color="#fff" />
+                </div>
               </div>
               <div class="album-info">
                 <h4 class="album-name">{{ album.name }}</h4>
@@ -165,7 +171,6 @@ const showCreateDialog = ref(false)
 const showRenameDialog = ref(false)
 const showActionSheet = ref(false)
 const selectedAlbum = ref<Album | null>(null)
-const defaultCover = '/default-album-cover.jpg'
 
 const createForm = ref({
   name: '',
@@ -357,8 +362,11 @@ function confirmDelete(album: Album) {
   background: $bg-color;
 
   .cover-image {
+    display: block;
     width: 100%;
     height: 100%;
+    object-fit: cover;
+    object-position: center;
   }
 
   .cover-placeholder {

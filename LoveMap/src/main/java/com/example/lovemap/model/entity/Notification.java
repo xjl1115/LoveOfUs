@@ -17,6 +17,16 @@ public class Notification {
      * 通知内容
      */
     private String text;
+
+    /**
+     * 通知类型：1-系统通知，2-纪念日提醒，3-绑定相关，4-照片相关
+     */
+    private Integer type;
+
+    /**
+     * 关联业务ID（纪念日提醒为纪念日ID）
+     */
+    private Long businessId;
     
     /**
      * 用户/伴侣ID

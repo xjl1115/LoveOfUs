@@ -7,9 +7,37 @@
       <div class="user-card">
         <div class="user-avatar">
           <van-image round width="80" height="80" :src="userInfo?.avatarUrl || defaultAvatar" />
+          <!-- 头像右下角性别装饰（无障碍可读） -->
+          <button
+            v-if="userInfo && 'gender' in userInfo"
+            class="gender-decor"
+            :class="['g-' + genderBadgeClass(userInfo.gender), { 'is-unknown': !userInfo.gender }]"
+            :aria-label="'性别：' + genderLabel(userInfo.gender)"
+            @click="onClickMyGender"
+          >
+            <span class="gender-decor-icon" v-html="genderIcon(userInfo.gender)"></span>
+            <span class="gender-decor-pulse"></span>
+          </button>
         </div>
         <div class="user-info">
-          <h3>{{ userInfo?.nickname || '未设置昵称' }}</h3>
+          <h3>
+            {{ userInfo?.nickname || '未设置昵称' }}
+            <span class="vip-level-tag" :class="vipTagClass(userVipLevel)">
+              <span v-if="userVipLevel > 0" class="vip-crown">👑</span>{{ vipTagText(vipUserInfo?.vipLevelName) }}
+            </span>
+            <span
+              v-if="userInfo && 'gender' in userInfo"
+              class="gender-chip"
+              :class="['chip-' + genderBadgeClass(userInfo.gender), { 'chip-pulse': !!userInfo.gender }]"
+              role="button"
+              tabindex="0"
+              @click="onClickMyGender"
+              @keydown.enter="onClickMyGender"
+            >
+              <span class="chip-icon" v-html="genderIcon(userInfo.gender)"></span>
+              {{ genderLabel(userInfo.gender) }}
+            </span>
+          </h3>
           <p v-if="userInfo?.partner" class="partner-info">
             您的伴侣：{{ userInfo.partner.nickname }}
           </p>
@@ -19,6 +47,16 @@
             <span>已在一起 {{ daysTogether }} 天</span>
           </div>
         </div>
+      </div>
+
+      <!-- 升级 VIP 入口 -->
+      <div class="vip-entry" @click="$router.push('/vip')">
+        <span class="vip-entry-crown">👑</span>
+        <div class="vip-entry-info">
+          <div class="vip-entry-title">{{ vipEntryTitle }}</div>
+          <div class="vip-entry-sub">{{ vipEntrySubText }}</div>
+        </div>
+        <span class="vip-entry-action">{{ userVipLevel > 0 ? '续费' : '立即升级' }}</span>
       </div>
 
       <!-- 统计卡片 -->
@@ -58,8 +96,8 @@
             </div>
             <div class="anniversary-right">
               <div class="anniversary-countdown" @click="showAnniversaryDetail(item)">
-                <span class="countdown-days">{{ item.daysUntil }}</span>
-                <span class="countdown-text">天后</span>
+                <span class="countdown-days">{{ item.daysUntil === 0 ? '今天' : item.daysUntil }}</span>
+                <span v-if="item.daysUntil !== 0" class="countdown-text">天后</span>
               </div>
               <van-icon name="ellipsis" class="anniversary-more" @click="onAnniversaryMore(item)" />
             </div>
@@ -80,7 +118,24 @@
           <div class="partner-detail">
             <van-image round width="56" height="56" :src="userInfo.partner.avatarUrl || defaultAvatar" />
             <div class="partner-detail-info">
-              <div class="partner-detail-name">{{ userInfo.partner.nickname }}</div>
+              <div class="partner-detail-name">
+                {{ userInfo.partner.nickname }}
+                <span class="vip-level-tag" :class="vipTagClass(userInfo.partner.vipLevel)">
+                  <span v-if="(userInfo.partner.vipLevel ?? 0) > 0" class="vip-crown">👑</span>{{ vipTagText(userInfo.partner.vipLevelName) }}
+                </span>
+                <span
+                  v-if="'gender' in userInfo.partner"
+                  class="gender-chip"
+                  :class="['chip-' + genderBadgeClass(userInfo.partner.gender), { 'chip-pulse': !!userInfo.partner.gender }]"
+                  role="button"
+                  tabindex="0"
+                  @click="onClickPartnerGender"
+                  @keydown.enter="onClickPartnerGender"
+                >
+                  <span class="chip-icon" v-html="genderIcon(userInfo.partner.gender)"></span>
+                  {{ genderLabel(userInfo.partner.gender) }}
+                </span>
+              </div>
               <div class="partner-detail-item">
                 <van-icon name="phone-o" />
                 <span>{{ userInfo.partner.phone || '用户暂未设置' }}</span>
@@ -88,6 +143,15 @@
               <div class="partner-detail-item">
                 <van-icon name="envelop-o" />
                 <span>{{ userInfo.partner.email }}</span>
+              </div>
+              <!-- 性别描述行 -->
+              <div
+                v-if="'gender' in userInfo.partner"
+                class="partner-detail-item partner-gender-row"
+                @click="onClickPartnerGender"
+              >
+                <van-icon name="friends-o" />
+                <span>{{ partnerGenderDesc(userInfo.partner.gender) }}</span>
               </div>
             </div>
           </div>
@@ -163,6 +227,18 @@
           >
             生成绑定码
           </van-button>
+          <van-button
+            v-if="bindCode"
+            class="invite-btn"
+            block
+            round
+            plain
+            type="primary"
+            icon="share-o"
+            @click="invitePartner"
+          >
+            邀请伴侣共建相册
+          </van-button>
           <div class="bind-code-actions">
             <span class="link" @click="showBindInput = true">已有伴侣的绑定码？点击输入</span>
           </div>
@@ -178,12 +254,22 @@
 
       <!-- 设置列表 -->
       <van-cell-group inset class="settings-group">
+        <van-cell title="VIP 会员" icon="gem-o" is-link @click="$router.push('/vip')">
+          <template #value>
+            <span class="vip-tag" :class="{ 'vip-tag-active': userVipLevel > 0 }">
+              {{ userVipLevel > 0 ? vipUserInfo?.vipLevelName : '未开通' }}
+            </span>
+          </template>
+        </van-cell>
         <van-cell title="账户设置" icon="setting-o" is-link @click="$router.push('/account-settings')" />
         <van-cell title="消息通知" icon="bell-o" is-link @click="showNotificationSettings" />
 
+        <van-cell title="AI 约会策划" icon="like-o" is-link @click="$router.push('/date-plan')" />
+        <van-cell title="AI 化妆建议" icon="like-o" is-link @click="$router.push('/makeover')" />
+        <van-cell title="情侣心愿清单" icon="star-o" is-link @click="$router.push('/wishlist')" />
         <van-cell title="数据备份与导出" icon="backup-o" is-link @click="$router.push('/export')" />
-        <van-cell title="分享 LoveMap" icon="share-o" is-link @click="showShare" />
-        <van-cell title="关于 LoveMap" icon="info-o" is-link @click="showAbout" />
+        <van-cell title="分享 LoveOfUs" icon="share-o" is-link @click="showShare" />
+        <van-cell title="关于 LoveOfUs" icon="info-o" is-link @click="showAbout" />
       </van-cell-group>
 
       <!-- 退出登录 -->
@@ -297,7 +383,7 @@
               </template>
               <template #value>
                 <span :class="{ 'expired': (item.daysUntil ?? 0) < 0 }">
-                  {{ (item.daysUntil ?? 0) < 0 ? '已过去' + Math.abs(item.daysUntil!) + '天' : item.daysUntil + '天后' }}
+                  {{ countdownText(item.daysUntil) }}
                 </span>
               </template>
             </van-cell>
@@ -366,6 +452,24 @@
     <!-- 纪念日操作 ActionSheet -->
     <van-action-sheet v-model:show="showAnniversaryActions" :actions="anniversaryActions" @select="onAnniversaryActionSelect" cancel-text="取消" close-on-click-action />
 
+    <!-- 自己的性别 ActionSheet -->
+    <van-action-sheet
+      v-model:show="showMyGenderSheet"
+      :actions="myGenderActions"
+      cancel-text="取消"
+      close-on-click-action
+      :description="myGenderSheetDesc"
+      @select="onMyGenderSelect"
+    />
+
+    <!-- 伴侣的性别 ActionSheet -->
+    <van-action-sheet
+      v-model:show="showPartnerGenderSheet"
+      :actions="partnerGenderActions"
+      cancel-text="关闭"
+      :description="partnerGenderSheetDesc"
+    />
+
     <!-- 纪念日详情弹窗 -->
     <van-popup v-model:show="showAnniversaryDetailPopup" round closeable position="bottom" :style="{ height: '65%' }">
       <div class="anniversary-detail-popup" v-if="selectedAnniversary">
@@ -378,8 +482,10 @@
             <div class="countdown-icon">💕</div>
             <div class="countdown-name">{{ selectedAnniversary.name }}</div>
             <div class="countdown-number">
-              <span class="countdown-value">{{ selectedAnniversary.daysUntil ?? 0 }}</span>
-              <span class="countdown-unit">天后</span>
+              <span class="countdown-value" :class="{ today: selectedAnniversary.daysUntil === 0 }">
+                {{ selectedAnniversary.daysUntil === 0 ? '今天' : (selectedAnniversary.daysUntil ?? 0) }}
+              </span>
+              <span v-if="selectedAnniversary.daysUntil !== 0" class="countdown-unit">天后</span>
             </div>
             <div class="countdown-date">{{ selectedAnniversary.anniversaryDate }}</div>
           </div>
@@ -471,8 +577,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, onActivated, onBeforeUnmount } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { showConfirmDialog, showDialog, showToast, showImagePreview } from 'vant'
 import BottomTab from '@/components/BottomTab.vue'
 import { useUserStore } from '@/stores/user'
@@ -480,11 +586,16 @@ import { getUserInfo, getUserStats, generateBindCode as apiGenerateBindCode, get
 import { getTimelinePhotos } from '@/api/photo'
 import { getAnniversaryList, createAnniversary, deleteAnniversary, getAnniversary, updateAnniversary, type Anniversary } from '@/api/anniversary'
 import { logout as authLogout } from '@/api/auth'
+import { scheduleDailyRefresh } from '@/utils/date'
 import type { UserInfo, UserStats, Photo } from '@/types'
 import QRCode from 'qrcode'
 
+const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+
+// 跨天（0 点）自动刷新纪念日倒计时
+let cancelDailyRefresh: (() => void) | null = null
 
 const dummyDialogVisible = ref(false)
 
@@ -515,6 +626,38 @@ const currentPhotoSrc = computed(() => {
 
 const daysTogether = computed(() => userStore.daysTogether)
 
+/**
+ * VIP 信息读取 store 而非本页 userInfo：
+ * Profile 被 keep-alive 缓存，本地 userInfo 不会随会员页的下单结果刷新
+ */
+const vipUserInfo = computed(() => userStore.userInfo)
+/** VIP 等级：0-普通用户，>0 为已开通 */
+const userVipLevel = computed(() => vipUserInfo.value?.vipLevel ?? 0)
+
+/** 等级标签文案：未设置时按普通展示 */
+function vipTagText(name?: string) {
+  return name || '普通'
+}
+
+/** 等级标签配色：普通为灰色，会员为金色 */
+function vipTagClass(level?: number) {
+  return (level ?? 0) > 0 ? 'vip-tag-gold' : 'vip-tag-gray'
+}
+
+/** 入口标题：会员显示「XX会员」，非会员显示开通引导 */
+const vipEntryTitle = computed(() =>
+  userVipLevel.value > 0 ? `${vipTagText(vipUserInfo.value?.vipLevelName)}会员` : '开通 VIP 会员'
+)
+
+/** 入口副标题：会员显示到期时间，非会员显示卖点 */
+const vipEntrySubText = computed(() => {
+  if (userVipLevel.value <= 0) {
+    return '双人同享 · 解锁全部情侣专属权益'
+  }
+  const expireAt = vipUserInfo.value?.vipExpireAt
+  return expireAt ? `${String(expireAt).slice(0, 10)} 到期` : '永久有效'
+})
+
 // 分享相关
 const showSharePopup = ref(false)
 const shareUrl = window.location.origin
@@ -541,6 +684,14 @@ const newAnniversary = ref({
   description: ''
 })
 const loadingAnniversaries = ref(false)
+
+/** 纪念日倒计时文案：负数=已过去 N 天，0=今天，正数=N 天后 */
+function countdownText(days: number | null | undefined): string {
+  const value = days ?? 0
+  if (value < 0) return `已过去${Math.abs(value)}天`
+  if (value === 0) return '今天'
+  return `${value}天后`
+}
 
 // 加载纪念日列表
 async function loadAnniversaries() {
@@ -776,7 +927,50 @@ async function copyShareUrl() {
 onMounted(() => {
   loadUserInfo()
   loadStats()
+  cancelDailyRefresh = scheduleDailyRefresh(loadAnniversaries)
 })
+
+onBeforeUnmount(() => {
+  cancelDailyRefresh?.()
+})
+
+// 支持从首页「纪念日提醒」跳转过来时直接打开纪念日入口（/profile?open=anniversary）
+// Profile 在 App.vue 的 keep-alive 缓存中，onActivated 在首次挂载与每次回到该页时都会触发
+onActivated(() => {
+  refreshVipInfo()
+  handleAnniversaryEntry()
+})
+
+/**
+ * VIP 由顾问收款后异步开通，回到本页时刷新一次，
+ * 避免 keep-alive 缓存导致「VIP 会员」入口状态滞后
+ */
+async function refreshVipInfo() {
+  try {
+    const data = await getUserInfo()
+    userStore.setUserInfo(data)
+  } catch (error) {
+    console.error('刷新用户信息失败:', error)
+  }
+}
+
+async function handleAnniversaryEntry() {
+  if (route.query.open !== 'anniversary') return
+  const id = Number(route.query.id)
+  // 清掉 query，避免下次进入个人页时重复弹窗
+  router.replace({ path: '/profile' })
+  // 首页提醒卡片会带上对应纪念日 id：直接展示该条详情；无 id 时仍打开纪念日列表
+  if (id > 0) {
+    try {
+      selectedAnniversary.value = await getAnniversary(id)
+      showAnniversaryDetailPopup.value = true
+      return
+    } catch (error: any) {
+      showToast(error?.response?.data?.message || error?.message || '获取详情失败')
+    }
+  }
+  await showAnniversarySettings()
+}
 
 async function loadUserInfo() {
   try {
@@ -845,6 +1039,24 @@ function copyBindCode() {
   if (!bindCode.value) return
   navigator.clipboard.writeText(bindCode.value).then(() => {
     showToast('绑定码已复制')
+  }).catch(() => {
+    showToast('复制失败，请手动复制')
+  })
+}
+
+// 复制邀请文案（已生成绑定码且未绑定时可用）
+function invitePartner() {
+  if (!bindCode.value) return
+  const nickname = userInfo.value?.nickname?.trim() || '您的好友'
+  const text = [
+    `【LoveOfUs】${nickname}邀请您共建情侣相册`,
+    `邀请码：${bindCode.value}（永久有效）`,
+    '',
+    '打开链接注册或绑定伴侣时输入邀请码，即可与 TA 一起记录每一刻，珍藏一辈子 ❤️',
+    shareUrl
+  ].join('\n')
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('邀请内容已复制，快分享给伴侣吧')
   }).catch(() => {
     showToast('复制失败，请手动复制')
   })
@@ -967,11 +1179,11 @@ async function performDeleteAccount() {
   }
 }
 
-// 显示关于 LoveMap 信息
+// 显示关于 LoveOfUs 信息
 function showAbout() {
   showDialog({
-    title: '关于 LoveMap',
-    message: `LoveMap v1.0.0
+    title: '关于 LoveOfUs',
+    message: `LoveOfUs v1.0.0
 
 一款专为情侣和夫妻打造的甜蜜回忆地图，记录你们的每一次出行、每一张照片和每一个美好瞬间。
 
@@ -985,6 +1197,115 @@ function showAbout() {
 愿你们的爱情，如地图上的每一个坐标，被永远铭记。`,
     confirmButtonText: '知道了'
   })
+}
+
+// 性别显示标签
+function genderLabel(gender?: number | string) {
+  const map: Record<string, string> = {
+    '0': '保密',
+    '1': '男',
+    '2': '女',
+    'male': '男',
+    'female': '女',
+    'other': '保密'
+  }
+  return map[String(gender)] || '保密'
+}
+
+// 性别徽标样式类
+function genderBadgeClass(gender?: number | string) {
+  const map: Record<string, string> = {
+    '1': 'male',
+    '2': 'female',
+    'male': 'male',
+    'female': 'female'
+  }
+  return map[String(gender)] || 'other'
+}
+
+// 性别图标（SVG 字符串，避免额外依赖）
+function genderIcon(gender?: number | string) {
+  const g = String(gender)
+  if (g === '1' || g === 'male') {
+    // 男性 ♂
+    return '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M14.5 3.5l5 5-1.4 1.4-2.1-2.1V14h-2V7.8L11.9 9.9a5 5 0 1 1-1.4-1.4L14.5 4.5zM9 12a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg>'
+  }
+  if (g === '2' || g === 'female') {
+    // 女性 ♀
+    return '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M12 3a5 5 0 0 0-4 8.2V14H6v2h2v3h2v-3h2v3h2v-3h2v-2h-2v-2.8A5 5 0 0 0 12 3zm-3 5a3 3 0 1 1 6 0 3 3 0 0 1-6 0z"/></svg>'
+  }
+  // 保密 / 未知 / 未设置
+  return '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm-1-13h2v6h-2V7zm0 8h2v2h-2v-2z"/></svg>'
+}
+
+// 性别描述（用于伴侣行）
+function partnerGenderDesc(gender?: number | string) {
+  const g = String(gender)
+  if (g === '1' || g === 'male') return '他 / 男朋友'
+  if (g === '2' || g === 'female') return '她 / 女朋友'
+  return 'TA / 性别保密'
+}
+
+// 性别 ActionSheet 控制
+const showMyGenderSheet = ref(false)
+const myGenderActions = ref<{ name: string; subname?: string; disabled?: boolean }[]>([])
+const myGenderSheetDesc = ref('')
+
+const showPartnerGenderSheet = ref(false)
+const partnerGenderActions = ref<{ name: string; subname?: string; disabled?: boolean }[]>([])
+const partnerGenderSheetDesc = ref('')
+
+// 点击自己的性别
+function onClickMyGender() {
+  const g = userInfo.value?.gender
+  if (!g) {
+    showConfirmDialog({
+      title: '性别未设置',
+      message: '你还没设置性别，去「账户设置」完善一下吧～',
+      confirmButtonText: '去设置',
+      cancelButtonText: '稍后'
+    }).then(() => router.push('/account-settings'))
+      .catch(() => {})
+    return
+  }
+  myGenderSheetDesc.value = `${genderLabel(g)} · ${genderSubDesc(g, false)}`
+  myGenderActions.value = [
+    { name: `当前性别：${genderLabel(g)}`, subname: genderSubDesc(g, false), disabled: true },
+    { name: '去修改性别', subname: '账户设置中可修改' }
+  ]
+  showMyGenderSheet.value = true
+}
+
+// 自己的 ActionSheet 选项点击
+function onMyGenderSelect(_action: { name: string }, index: number) {
+  if (index === 1) {
+    showMyGenderSheet.value = false
+    router.push('/account-settings')
+  }
+}
+
+// 点击伴侣的性别
+function onClickPartnerGender() {
+  const partner = userInfo.value?.partner
+  if (!partner) return
+  const g = partner.gender
+  partnerGenderSheetDesc.value = `${genderLabel(g)} · ${genderSubDesc(g, true)}`
+  partnerGenderActions.value = [
+    { name: `${partner.nickname}：${genderLabel(g)}`, subname: genderSubDesc(g, true), disabled: true }
+  ]
+  showPartnerGenderSheet.value = true
+}
+
+// 性别的副描述
+function genderSubDesc(g: any, isPartner: boolean) {
+  const who = isPartner ? 'TA' : '你'
+  const map: Record<string, string> = {
+    '1': `${who}是男生 / 男朋友`,
+    '2': `${who}是女生 / 女朋友`,
+    'male': `${who}是男生 / 男朋友`,
+    'female': `${who}是女生 / 女朋友`
+  }
+  return map[String(g)] || `${who}暂未设置性别 / 保密`
 }
 
 function logout() {
@@ -1058,6 +1379,170 @@ function logout() {
 @keyframes heartbeat {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.2); }
+}
+
+// ============ 性别视觉与交互 ============
+
+// 头像右下角的圆形性别装饰（高亮、动效）
+.gender-decor {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+  outline: none;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  font-size: 16px;
+  line-height: 1;
+  z-index: 2;
+
+  &:hover { transform: scale(1.08); }
+  &:active { transform: scale(0.94); }
+
+  // 内部 SVG 颜色由背景决定，文字图标用纯色
+  .gender-decor-icon {
+    display: inline-flex;
+    color: #fff;
+    align-items: center;
+    justify-content: center;
+  }
+
+  // 脉冲光环（保密时不显示）
+  .gender-decor-pulse {
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    pointer-events: none;
+    opacity: 0;
+    animation: genderPulse 2.2s ease-out infinite;
+  }
+
+  &.g-male {
+    background: linear-gradient(135deg, #4f9bff 0%, #2b6cff 100%);
+    .gender-decor-pulse { box-shadow: 0 0 0 0 rgba(43, 108, 255, 0.55); }
+  }
+  &.g-female {
+    background: linear-gradient(135deg, #ff6fa5 0%, #ee0a6b 100%);
+    .gender-decor-pulse { box-shadow: 0 0 0 0 rgba(238, 10, 107, 0.55); }
+  }
+  &.g-other {
+    background: linear-gradient(135deg, #b8bec6 0%, #8e94a1 100%);
+    color: #fff;
+    .gender-decor-pulse { display: none; }
+  }
+  &.is-unknown { animation: genderShake 0.45s ease-out 1; }
+}
+
+@keyframes genderPulse {
+  0% { box-shadow: 0 0 0 0 rgba(43, 108, 255, 0.55); opacity: 1; }
+  70% { box-shadow: 0 0 0 12px rgba(43, 108, 255, 0); opacity: 0; }
+  100% { box-shadow: 0 0 0 0 rgba(43, 108, 255, 0); opacity: 0; }
+}
+.gender-decor.g-female .gender-decor-pulse {
+  animation-name: genderPulseFemale;
+}
+@keyframes genderPulseFemale {
+  0% { box-shadow: 0 0 0 0 rgba(238, 10, 107, 0.55); opacity: 1; }
+  70% { box-shadow: 0 0 0 12px rgba(238, 10, 107, 0); opacity: 0; }
+  100% { box-shadow: 0 0 0 0 rgba(238, 10, 107, 0); opacity: 0; }
+}
+@keyframes genderShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-3px); }
+  50% { transform: translateX(3px); }
+  75% { transform: translateX(-2px); }
+}
+
+// 昵称旁的胶囊式 chip（柔和、磨砂）
+.gender-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  border-radius: 10px;
+  vertical-align: middle;
+  border: 1px solid transparent;
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s ease;
+
+  .chip-icon {
+    display: inline-flex;
+    align-items: center;
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  &:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08); }
+  &:active { transform: scale(0.96); }
+  &:focus-visible { box-shadow: 0 0 0 2px rgba(25, 137, 250, 0.35); }
+
+  &.chip-male {
+    color: #2b6cff;
+    background: linear-gradient(135deg, #f0f6ff 0%, #dceaff 100%);
+    border-color: rgba(43, 108, 255, 0.25);
+  }
+  &.chip-female {
+    color: #ee0a6b;
+    background: linear-gradient(135deg, #fff0f6 0%, #ffd9e7 100%);
+    border-color: rgba(238, 10, 107, 0.25);
+  }
+  &.chip-other {
+    color: #6b7280;
+    background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+    border-color: rgba(107, 114, 128, 0.25);
+  }
+  &.chip-pulse {
+    animation: chipBreathe 3.6s ease-in-out infinite;
+  }
+}
+
+@keyframes chipBreathe {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(43, 108, 255, 0); }
+  50% { box-shadow: 0 0 0 4px rgba(43, 108, 255, 0.08); }
+}
+.gender-chip.chip-female.chip-pulse {
+  animation-name: chipBreatheFemale;
+}
+@keyframes chipBreatheFemale {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(238, 10, 107, 0); }
+  50% { box-shadow: 0 0 0 4px rgba(238, 10, 107, 0.1); }
+}
+
+// 伴侣详情名旁的 chip 小一号
+.partner-detail-name .gender-chip {
+  font-size: 10px;
+  padding: 1px 8px;
+  line-height: 16px;
+  .chip-icon { font-size: 10px; }
+}
+
+// 伴侣卡片里的性别描述行（带悬停）
+.partner-detail-item.partner-gender-row {
+  cursor: pointer;
+  padding: 4px 6px;
+  margin-left: -6px;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+  &:hover { background: rgba(0, 0, 0, 0.04); }
+  &:active { background: rgba(0, 0, 0, 0.08); }
+}
+
+// 头像容器需要 relative 以便装饰定位
+.user-avatar {
+  position: relative;
 }
 
 .stats-card {
@@ -1146,6 +1631,10 @@ function logout() {
       }
     }
 
+    .invite-btn {
+      margin-top: 12px;
+    }
+
     .partner-detail {
       display: flex;
       align-items: center;
@@ -1215,6 +1704,73 @@ function logout() {
 
   &:active {
     opacity: 0.8;
+  }
+}
+
+// 一起做 双入口（约会 / 心愿）
+.together-do-card {
+  margin-top: 12px;
+  background: linear-gradient(135deg, #fff5f5 0%, #fff0e6 100%);
+  border-radius: $radius-lg;
+  padding: 14px 16px;
+  box-shadow: $shadow-sm;
+
+  .td-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: $primary-color;
+    margin-bottom: 10px;
+  }
+
+  .td-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .td-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #fff;
+    border-radius: $radius-md;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: transform 0.18s;
+
+    &:active { transform: scale(0.98); }
+
+    .td-icon {
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .td-info {
+      flex: 1;
+      min-width: 0;
+
+      .td-name {
+        font-size: 13px;
+        font-weight: 600;
+        color: $text-primary;
+        line-height: 1.2;
+      }
+
+      .td-desc {
+        font-size: 11px;
+        color: $text-tertiary;
+        line-height: 1.3;
+        margin-top: 2px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+
+    .van-icon {
+      font-size: 14px;
+      color: $text-tertiary;
+    }
   }
 }
 
@@ -1683,6 +2239,11 @@ function logout() {
           font-size: 48px;
           font-weight: 700;
           line-height: 1;
+
+          // 当天显示「今天」时缩小字号，避免文字过长
+          &.today {
+            font-size: 32px;
+          }
         }
 
         .countdown-unit {
@@ -1817,6 +2378,107 @@ function logout() {
     font-size: 12px;
     color: $text-tertiary;
     margin: 0;
+  }
+}
+
+.vip-tag {
+  font-size: 12px;
+  color: $text-tertiary;
+}
+
+.vip-tag-active {
+  color: #c9a227;
+  font-weight: 600;
+}
+
+.vip-level-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 8px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  border-radius: 10px;
+  vertical-align: middle;
+  border: 1px solid transparent;
+
+  .vip-crown {
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  &.vip-tag-gold {
+    color: #8a6a12;
+    background: linear-gradient(135deg, #fff8e1 0%, #ffe9a8 100%);
+    border-color: rgba(201, 162, 39, 0.4);
+  }
+
+  &.vip-tag-gray {
+    color: $text-tertiary;
+    background: linear-gradient(135deg, #f5f5f5 0%, #ececec 100%);
+    border-color: rgba(0, 0, 0, 0.06);
+  }
+}
+
+// 伴侣卡片里的等级标签小一号
+.partner-detail-name .vip-level-tag {
+  font-size: 10px;
+  padding: 1px 8px;
+  line-height: 16px;
+
+  .vip-crown {
+    font-size: 10px;
+  }
+}
+
+.vip-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 14px;
+  border-radius: $radius-lg;
+  background: linear-gradient(135deg, #3d3226 0%, #6b5636 100%);
+  color: $text-white;
+  box-shadow: $shadow-md;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+
+  &:active {
+    transform: scale(0.99);
+  }
+
+  .vip-entry-crown {
+    font-size: 22px;
+    line-height: 1;
+  }
+
+  .vip-entry-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .vip-entry-title {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .vip-entry-sub {
+    font-size: 11px;
+    opacity: 0.8;
+    margin-top: 2px;
+  }
+
+  .vip-entry-action {
+    flex: none;
+    font-size: 12px;
+    font-weight: 600;
+    color: #3d3226;
+    background: linear-gradient(135deg, #ffe9a8 0%, #f5d173 100%);
+    border-radius: 12px;
+    padding: 5px 12px;
   }
 }
 </style>

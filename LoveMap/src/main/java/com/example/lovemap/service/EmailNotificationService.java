@@ -152,4 +152,50 @@ public class EmailNotificationService {
             log.error("发送纪念日提醒邮件失败, userId: {}, anniversary: {}", userId, anniversaryName, e);
         }
     }
+
+    /**
+     * 异步发送 VIP 开通成功邮件
+     *
+     * @param userId          收件用户ID
+     * @param tierName        VIP 档位名称
+     * @param activatedAtText 开通时间（已格式化）
+     * @param expireAtText    到期时间（已格式化，永久卡为“永久有效”）
+     */
+    @Async("notificationExecutor")
+    public void sendVipActivatedEmail(Integer userId, String tierName, String activatedAtText, String expireAtText) {
+        try {
+            User user = userMapper.selectById(userId);
+            if (user == null) {
+                log.warn("发送 VIP 开通邮件失败：用户不存在, userId: {}", userId);
+                return;
+            }
+
+            // 查询用户的邮箱通知开关
+            String cacheKey = UserConstant.USER_NOTIFICATION_SETTINGS + userId;
+            String cachedJson = redisTemplate.opsForValue().get(cacheKey);
+            NotificationSettingsVO settings = null;
+            if (cachedJson != null) {
+                try {
+                    settings = objectMapper.readValue(cachedJson, NotificationSettingsVO.class);
+                } catch (Exception e) {
+                    log.warn("解析用户通知设置失败, userId: {}, 使用默认值", userId, e);
+                }
+            }
+            if (settings != null && settings.getEmail() != null && !settings.getEmail()) {
+                log.debug("用户未开启邮箱通知，跳过 VIP 开通邮件, userId: {}", userId);
+                return;
+            }
+
+            if (user.getEmail() == null || user.getEmail().isEmpty()) {
+                log.warn("用户邮箱为空，跳过 VIP 开通邮件, userId: {}", userId);
+                return;
+            }
+
+            String nickname = user.getNickname() != null ? user.getNickname() : "用户";
+            asyncMailService.sendVipActivatedMailAsync(user.getEmail(), nickname, tierName, activatedAtText, expireAtText);
+            log.info("已向用户发送 VIP 开通邮件, userId: {}, tier: {}", userId, tierName);
+        } catch (Exception e) {
+            log.error("发送 VIP 开通邮件失败, userId: {}, tier: {}", userId, tierName, e);
+        }
+    }
 }

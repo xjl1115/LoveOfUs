@@ -1,5 +1,6 @@
 package com.example.lovemap.utils;
 
+import com.example.lovemap.utils.storage.FileStorage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -16,7 +17,7 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class AliyunOSSUtils {
 
-    private final PutObjectAsyncUtils putObjectAsync;
+    private final FileStorage fileStorage;
 
     /**
      * 异步上传头像文件
@@ -25,7 +26,7 @@ public class AliyunOSSUtils {
         log.info("开始上传用户头像, userId: {}, fileName: {}, fileSize: {}",
                 userId, file.getOriginalFilename(), file.getSize());
 
-        String avatarUrl = putObjectAsync.uploadAvatar(file, userId);
+        String avatarUrl = fileStorage.uploadAvatar(file, userId);
 
         log.info("用户头像上传成功, userId: {}, avatarUrl: {}", userId, avatarUrl);
         return avatarUrl;
@@ -42,7 +43,7 @@ public class AliyunOSSUtils {
     public String asyncUploadFile(MultipartFile file, String objectKey) throws IOException {
         log.info("开始上传文件, fileName: {}, objectKey: {}", file.getOriginalFilename(), objectKey);
 
-        String fileUrl = putObjectAsync.uploadFile(file, objectKey);
+        String fileUrl = fileStorage.uploadFile(file, objectKey);
 
         log.info("文件上传成功, fileUrl: {}", fileUrl);
         return fileUrl;
@@ -60,7 +61,7 @@ public class AliyunOSSUtils {
         log.info("开始上传照片, userId: {}, fileName: {}, fileSize: {}",
                 userId, file.getOriginalFilename(), file.getSize());
 
-        String photoUrl = putObjectAsync.uploadPhoto(file, userId);
+        String photoUrl = fileStorage.uploadPhoto(file, userId);
 
         log.info("照片上传成功, userId: {}, photoUrl: {}", userId, photoUrl);
         return photoUrl;
@@ -73,7 +74,7 @@ public class AliyunOSSUtils {
      */
     public void deleteFile(String objectKey) {
         log.info("开始删除OSS文件, objectKey: {}", objectKey);
-        putObjectAsync.deleteFile(objectKey);
+        fileStorage.delete(objectKey);
         log.info("OSS文件删除成功, objectKey: {}", objectKey);
     }
 }

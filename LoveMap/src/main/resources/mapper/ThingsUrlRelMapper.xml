@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.lovemap.mapper.ThingsUrlRelMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.lovemap.model.entity.ThingsUrlRel">
+        <id column="id" property="id"/>
+        <result column="thing_id" property="thingId"/>
+        <result column="url_id" property="urlId"/>
+        <result column="group_id" property="groupId"/>
+        <result column="uploaded_by" property="uploadedBy"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <sql id="BaseColumns">
+        id, thing_id, url_id, group_id, uploaded_by, created_at
+    </sql>
+
+    <insert id="batchInsert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO things_url_rel (thing_id, url_id, group_id, uploaded_by, created_at) VALUES
+        <foreach collection="list" item="it" separator=",">
+            (#{it.thingId}, #{it.urlId}, #{it.groupId}, #{it.uploadedBy}, #{it.createdAt})
+        </foreach>
+    </insert>
+
+    <select id="selectByThingId" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/> FROM things_url_rel
+        WHERE thing_id = #{thingId}
+        ORDER BY created_at DESC
+    </select>
+
+    <select id="selectByThingIdAndGroupOrUser" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/> FROM things_url_rel
+        WHERE thing_id = #{thingId}
+          AND (group_id = #{groupId} OR (group_id IS NULL AND uploaded_by = #{userId}))
+        ORDER BY created_at DESC
+    </select>
+
+    <select id="selectByGroupOrUser" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/> FROM things_url_rel
+        WHERE group_id = #{groupId} OR (group_id IS NULL AND uploaded_by = #{userId})
+        ORDER BY created_at DESC
+    </select>
+
+    <delete id="deleteByUrlId">
+        DELETE FROM things_url_rel WHERE url_id = #{urlId}
+    </delete>
+
+    <delete id="deleteByThingId">
+        DELETE FROM things_url_rel WHERE thing_id = #{thingId}
+    </delete>
+
+</mapper>

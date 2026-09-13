@@ -5,18 +5,20 @@
     <resultMap id="notificationMap" type="com.example.lovemap.model.entity.Notification">
         <id property="id" column="id"/>
         <result property="text" column="text"/>
+        <result property="type" column="type"/>
+        <result property="businessId" column="business_id"/>
         <result property="userId" column="user_id"/>
         <result property="isRead" column="is_read"/>
         <result property="createdAt" column="created_at"/>
     </resultMap>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO notification (text, user_id, is_read, created_at)
-        VALUES (#{text}, #{userId}, #{isRead}, #{createdAt})
+        INSERT INTO notification (text, type, business_id, user_id, is_read, created_at)
+        VALUES (#{text}, #{type}, #{businessId}, #{userId}, #{isRead}, #{createdAt})
     </insert>
 
     <select id="selectByUserId" resultMap="notificationMap">
-        SELECT id, text, user_id, is_read, created_at FROM notification
+        SELECT id, text, type, business_id, user_id, is_read, created_at FROM notification
         WHERE user_id = #{userId}
         <if test="isRead != null">
             AND is_read = #{isRead}
@@ -60,7 +62,7 @@
     </delete>
 
     <select id="selectByIdAndUserId" resultMap="notificationMap">
-        SELECT id, text, user_id, is_read, created_at FROM notification
+        SELECT id, text, type, business_id, user_id, is_read, created_at FROM notification
         WHERE id = #{id} AND user_id = #{userId}
     </select>
 
