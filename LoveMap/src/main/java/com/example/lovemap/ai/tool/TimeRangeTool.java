@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -30,6 +31,7 @@ public class TimeRangeTool {
     /** 上海时区，与 application.yml system-prompt 中标注一致 */
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_LOCAL_DATE;
+    private static final DateTimeFormatter DATETIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     /**
      * 返回服务器当前日期
@@ -46,18 +48,21 @@ public class TimeRangeTool {
      * LLM 问"今天几号/今天周几"时应优先调用本工具，
      * 不要凭空算日期。
      */
-    @Tool("获取服务器当前时间（Asia/Shanghai 时区）。LLM 不要凭空猜日期，凡涉及'今天/现在/还有几天'都应先调用本工具。")
+    @Tool("获取服务器当前时间（Asia/Shanghai 时区），精确到秒。返回 now(yyyy-MM-dd HH:mm:ss)、today、weekdayCn 等字段。LLM 不要凭空猜日期或时间，凡涉及'今天几号/现在几点/还有几天'都应先调用本工具。")
     public Map<String, Object> getCurrentTime() {
-        LocalDate now = LocalDate.now(ZONE);
-        Map<String, Object> r = baseResult(now);
+        LocalDateTime now = LocalDateTime.now(ZONE);
+        LocalDate today = now.toLocalDate();
+        Map<String, Object> r = baseResult(today);
+        r.put("now", now.format(DATETIME));
         // 星期几的中文
-        r.put("weekdayCn", cnWeekday(now.getDayOfWeek()));
+        r.put("weekdayCn", cnWeekday(today.getDayOfWeek()));
         // 距今年结束
-        LocalDate yearEnd = LocalDate.of(now.getYear(), 12, 31);
-        r.put("daysUntilYearEnd", java.time.temporal.ChronoUnit.DAYS.between(now, yearEnd));
+        LocalDate yearEnd = LocalDate.of(today.getYear(), 12, 31);
+        r.put("daysUntilYearEnd", java.time.temporal.ChronoUnit.DAYS.between(today, yearEnd));
         // 距本月结束
-        LocalDate monthEnd = now.withDayOfMonth(now.lengthOfMonth());
-        r.put("daysUntilMonthEnd", java.time.temporal.ChronoUnit.DAYS.between(now, monthEnd));
+        LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
+        r.put("daysUntilMonthEnd", java.time.temporal.ChronoUnit.DAYS.between(today, monthEnd));
+        log.info("[AI-TOOL] getCurrentTime -> {}", now);
         return r;
     }
 

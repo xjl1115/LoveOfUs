@@ -7,6 +7,13 @@
 ALTER TABLE things ADD COLUMN icon VARCHAR(16) DEFAULT NULL COMMENT '事项左侧图标（emoji 文本）' AFTER description;
 
 -- ============================================================
+-- 已有表 things：新增 category 字段（分类，前端按此过滤分项页签）
+-- 取值：travel 旅行 / romance 浪漫 / daily 日常 / food 美食 / memory 纪念 / growth 成长
+-- 老数据回填见 sql/migrate/V18__things_category.sql
+-- ============================================================
+ALTER TABLE things ADD COLUMN category VARCHAR(16) DEFAULT NULL COMMENT '分类：travel旅行/romance浪漫/daily日常/food美食/memory纪念/growth成长' AFTER icon;
+
+-- ============================================================
 -- 表 1：things_completion（完成记录，情侣共享）
 -- ============================================================
 CREATE TABLE IF NOT EXISTS things_completion (

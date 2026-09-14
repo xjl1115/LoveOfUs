@@ -18,9 +18,14 @@ public class Anniversary {
     private Long id;
 
     /**
-     * 所属群组ID（情侣共享）
+     * 所属群组ID（情侣共享；未绑定情侣时为 null）
      */
     private Long groupId;
+
+    /**
+     * 创建人用户ID（仅未绑定情侣的个人纪念日使用）
+     */
+    private Long userId;
 
     /**
      * 纪念日标题

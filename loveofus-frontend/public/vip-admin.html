@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIP 顾问台</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+      background: #f5f6f8;
+      color: #23272f;
+      font-size: 14px;
+    }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    h2 { font-size: 15px; margin: 0 0 8px; }
+    .sub { color: #8a9099; font-size: 12px; margin-bottom: 16px; }
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 16px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, .08);
+      margin-bottom: 16px;
+    }
+    .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    input[type=password] {
+      width: 320px;
+      padding: 8px 10px;
+      border: 1px solid #d9dde3;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    button {
+      padding: 8px 14px;
+      border: 1px solid #d9dde3;
+      border-radius: 6px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button:hover:not(:disabled) { border-color: #ff6b6b; color: #ff6b6b; }
+    button.primary { background: #ff6b6b; border-color: #ff6b6b; color: #fff; }
+    button.primary:hover:not(:disabled) { background: #f25555; color: #fff; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 10px 8px; border-bottom: 1px solid #eef0f3; text-align: left; white-space: nowrap; }
+    th { color: #6b7280; font-weight: 500; background: #fafbfc; }
+    th:first-child, td:first-child { width: 36px; }
+    .empty { padding: 24px; text-align: center; color: #9aa0a6; }
+    .hint { font-size: 12px; }
+    .hint.ok { color: #159a52; }
+    .hint.err { color: #e5484d; }
+    .gate {
+      padding: 40px;
+      text-align: center;
+      color: #9aa0a6;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, .08);
+    }
+    .result li { margin-bottom: 4px; }
+    .result .ok { color: #159a52; }
+    .result .err { color: #e5484d; }
+    .mono { font-family: Consolas, "Courier New", monospace; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>VIP 顾问台</h1>
+    <div class="sub">查看待开通订单、单个或批量开通。接口由 X-Vip-Admin-Token 校验，密钥不会写入服务端。</div>
+    <div class="row">
+      <input id="keyInput" type="password" placeholder="请输入顾问密钥" autocomplete="off">
+      <button id="verifyBtn" class="primary">校验密钥</button>
+      <button id="clearBtn" hidden>清除密钥</button>
+      <span id="keyHint" class="hint"></span>
+    </div>
+  </div>
+
+  <div id="gate" class="gate">请输入密钥并通过校验后，方可查看与开通</div>
+
+  <div id="panel" hidden>
+    <div class="card">
+      <div class="row">
+        <button id="refreshBtn">刷新列表</button>
+        <button id="batchBtn" class="primary" disabled>批量开通选中</button>
+        <label class="row"><input type="checkbox" id="selectAll"> 全选本页</label>
+        <span id="listHint" class="hint"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th>订单号</th>
+            <th>用户 ID</th>
+            <th>用户昵称</th>
+            <th>档位</th>
+            <th>金额</th>
+            <th>下单时间</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div id="emptyTip" class="empty" hidden>暂无待开通订单</div>
+    </div>
+
+    <div id="resultCard" class="card" hidden>
+      <h2>操作结果</h2>
+      <ul id="resultList" class="result"></ul>
+    </div>
+  </div>
+
+  <script>
+    var API_BASE = '/api/vip/admin/orders'
+    var STORAGE_KEY = 'vipAdminToken'
+    var token = sessionStorage.getItem(STORAGE_KEY) || ''
+    var orders = []
+    var selected = {}
+
+    var keyInput = document.getElementById('keyInput')
+    var keyHint = document.getElementById('keyHint')
+    var verifyBtn = document.getElementById('verifyBtn')
+    var clearBtn = document.getElementById('clearBtn')
+    var gate = document.getElementById('gate')
+    var panel = document.getElementById('panel')
+    var tbody = document.getElementById('tbody')
+    var emptyTip = document.getElementById('emptyTip')
+    var listHint = document.getElementById('listHint')
+    var batchBtn = document.getElementById('batchBtn')
+    var selectAll = document.getElementById('selectAll')
+    var resultCard = document.getElementById('resultCard')
+    var resultList = document.getElementById('resultList')
+
+    function request(path, options) {
+      options = options || {}
+      var headers = { 'Content-Type': 'application/json', 'X-Vip-Admin-Token': token }
+      return fetch(API_BASE + path, {
+        method: options.method || 'GET',
+        headers: headers,
+        body: options.body
+      }).then(function (resp) {
+        return resp.json().catch(function () {
+          return { code: resp.status, message: '响应解析失败（HTTP ' + resp.status + '）' }
+        })
+      }).catch(function (e) {
+        return { code: -1, message: '网络异常：' + e.message }
+      })
+    }
+
+    function setHint(el, text, cls) {
+      el.textContent = text || ''
+      el.className = 'hint' + (cls ? ' ' + cls : '')
+    }
+
+    function formatTime(value) {
+      if (!value) return '-'
+      return String(value).replace('T', ' ').slice(0, 19)
+    }
+
+    function escapeHtml(text) {
+      return String(text == null ? '' : text)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+    }
+
+    function selectedOrderNos() {
+      return orders.filter(function (o) { return selected[o.orderNo] }).map(function (o) { return o.orderNo })
+    }
+
+    function render() {
+      tbody.innerHTML = ''
+      orders.forEach(function (order) {
+        var tr = document.createElement('tr')
+        tr.innerHTML =
+          '<td><input type="checkbox" data-order="' + escapeHtml(order.orderNo) + '"' + (selected[order.orderNo] ? ' checked' : '') + '></td>' +
+          '<td class="mono">' + escapeHtml(order.orderNo) + '</td>' +
+          '<td>' + escapeHtml(order.userId) + '</td>' +
+          '<td>' + escapeHtml(order.nickname || '-') + '</td>' +
+          '<td>' + escapeHtml(order.vipLevelName || '-') + '</td>' +
+          '<td>' + (order.priceYuan == null ? '-' : escapeHtml(order.priceYuan) + ' 元') + '</td>' +
+          '<td>' + formatTime(order.createdAt) + '</td>' +
+          '<td><button data-activate="' + escapeHtml(order.orderNo) + '">开通</button></td>'
+        tbody.appendChild(tr)
+      })
+      emptyTip.hidden = orders.length > 0
+      selectAll.checked = orders.length > 0 && selectedOrderNos().length === orders.length
+      batchBtn.textContent = '批量开通选中（' + selectedOrderNos().length + '）'
+      batchBtn.disabled = selectedOrderNos().length === 0
+      setHint(listHint, '共 ' + orders.length + ' 条待开通订单')
+    }
+
+    function renderResults(title, items) {
+      resultCard.hidden = false
+      resultList.innerHTML = '<li><strong>' + escapeHtml(title) + '</strong></li>' + items.map(function (item) {
+        return '<li class="' + (item.success ? 'ok' : 'err') + '">' + escapeHtml(item.text) + '</li>'
+      }).join('')
+    }
+
+    function showPanel() {
+      gate.hidden = true
+      panel.hidden = false
+      verifyBtn.hidden = true
+      clearBtn.hidden = false
+      keyInput.hidden = true
+    }
+
+    function showGate() {
+      gate.hidden = false
+      panel.hidden = true
+      verifyBtn.hidden = false
+      clearBtn.hidden = true
+      keyInput.hidden = false
+      orders = []
+      selected = {}
+    }
+
+    /** 拉取待开通列表；返回是否校验通过（列表可用） */
+    function loadOrders() {
+      return request('/pending').then(function (res) {
+        if (res.code !== 200) {
+          setHint(keyHint, res.message || '密钥校验失败', 'err')
+          showGate()
+          return false
+        }
+        orders = res.data || []
+        // 已开通/已取消的订单不再出现在列表中，同步清理勾选状态
+        var valid = {}
+        orders.forEach(function (o) {
+          if (selected[o.orderNo]) valid[o.orderNo] = true
+        })
+        selected = valid
+        render()
+        return true
+      })
+    }
+
+    function verify() {
+      var value = keyInput.value.trim()
+      if (!value) {
+        setHint(keyHint, '请先输入密钥', 'err')
+        return
+      }
+      token = value
+      setHint(keyHint, '校验中…')
+      loadOrders().then(function (ok) {
+        if (ok) {
+          sessionStorage.setItem(STORAGE_KEY, token)
+          setHint(keyHint, '密钥校验通过', 'ok')
+          showPanel()
+        } else {
+          sessionStorage.removeItem(STORAGE_KEY)
+        }
+      })
+    }
+
+    function activate(orderNo) {
+      if (!window.confirm('确认已收到款项并开通订单 ' + orderNo + ' ？')) return
+      request('/' + encodeURIComponent(orderNo) + '/activate', { method: 'POST' }).then(function (res) {
+        renderResults('开通结果', [{
+          success: res.code === 200,
+          text: orderNo + '：' + (res.message || '') + (res.code === 200 && res.data && res.data.vipExpireAt ? '，到期时间 ' + formatTime(res.data.vipExpireAt) : '')
+        }])
+        loadOrders()
+      })
+    }
+
+    function batchActivate() {
+      var orderNos = selectedOrderNos()
+      if (!orderNos.length) return
+      if (!window.confirm('确认已收到款项并批量开通 ' + orderNos.length + ' 笔订单？')) return
+      request('/batch-activate', { method: 'POST', body: JSON.stringify({ orderNos: orderNos }) }).then(function (res) {
+        if (res.code !== 200) {
+          renderResults('批量开通结果', [{ success: false, text: res.message || '批量开通失败' }])
+        } else {
+          var data = res.data || {}
+          var items = (data.results || []).map(function (item) {
+            return {
+              success: !!item.success,
+              text: item.orderNo + '：' + (item.message || '') + (item.vipExpireAt ? '，到期时间 ' + formatTime(item.vipExpireAt) : '')
+            }
+          })
+          renderResults('批量开通结果：成功 ' + (data.successCount || 0) + ' 笔，失败 ' + (data.failCount || 0) + ' 笔', items)
+        }
+        loadOrders()
+      })
+    }
+
+    verifyBtn.addEventListener('click', verify)
+    keyInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') verify()
+    })
+    clearBtn.addEventListener('click', function () {
+      sessionStorage.removeItem(STORAGE_KEY)
+      token = ''
+      keyInput.value = ''
+      setHint(keyHint, '已清除密钥', 'ok')
+      showGate()
+    })
+    document.getElementById('refreshBtn').addEventListener('click', loadOrders)
+    batchBtn.addEventListener('click', batchActivate)
+    selectAll.addEventListener('change', function () {
+      selected = {}
+      if (selectAll.checked) {
+        orders.forEach(function (o) { selected[o.orderNo] = true })
+      }
+      render()
+    })
+    tbody.addEventListener('change', function (e) {
+      var orderNo = e.target.getAttribute('data-order')
+      if (!orderNo) return
+      if (e.target.checked) selected[orderNo] = true
+      else delete selected[orderNo]
+      render()
+    })
+    tbody.addEventListener('click', function (e) {
+      var orderNo = e.target.getAttribute('data-activate')
+      if (orderNo) activate(orderNo)
+    })
+
+    // 已有密钥（同标签页刷新）时自动校验一次
+    if (token) {
+      loadOrders().then(function (ok) {
+        if (ok) showPanel()
+      })
+    }
+  </script>
+</body>
+</html>

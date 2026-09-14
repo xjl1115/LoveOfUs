@@ -75,6 +75,7 @@ public class ThingsServiceImpl implements ThingsService {
             // icon 直接透传数据库字段（可能为空），由前端按 title 推断 emoji
             vo.setIcon(t.getIcon());
             vo.setCoverEmoji(t.getIcon());
+            vo.setCategory(t.getCategory());
             ThingsCompletion c = completionMap.get(t.getId());
             if (c != null) {
                 vo.setAchievedAt(c.getCompletedAt());

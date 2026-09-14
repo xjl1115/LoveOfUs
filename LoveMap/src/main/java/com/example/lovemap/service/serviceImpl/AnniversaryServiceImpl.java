@@ -51,11 +51,7 @@ public class AnniversaryServiceImpl implements AnniversaryService {
     @Override
     public Result<List<AnniversaryVO>> listAnniversaries(Integer userId) {
         return withUserValidation(userId, ctx -> {
-            if (ctx.groupId == null) {
-                return Result.success(Collections.emptyList());
-            }
-
-            String cacheKey = AnniversaryConstant.ANNIVERSARY_LIST_PREFIX + ctx.groupId;
+            String cacheKey = listCacheKey(ctx);
 
             // 尝试从缓存获取
             List<AnniversaryVO> cached = getFromCache(cacheKey, new TypeReference<List<AnniversaryVO>>() {});
@@ -64,7 +60,7 @@ public class AnniversaryServiceImpl implements AnniversaryService {
             }
 
             // 查询数据库
-            List<Anniversary> list = anniversaryMapper.selectByGroupId(ctx.groupId);
+            List<Anniversary> list = anniversaryMapper.selectByGroupOrUser(ctx.groupId, ctx.userId);
             List<AnniversaryVO> voList = convertToVOList(list);
 
             // 存入缓存
@@ -107,11 +103,12 @@ public class AnniversaryServiceImpl implements AnniversaryService {
             Anniversary anniversary = new Anniversary();
             copyDtoToEntity(dto, anniversary);
             anniversary.setGroupId(ctx.groupId);
+            anniversary.setUserId(ctx.userId);
 
             anniversaryMapper.insert(anniversary);
 
             // 清除列表缓存
-            clearListCache(ctx.groupId);
+            clearListCache(ctx);
 
             return Result.success(convertToVO(anniversary));
         });
@@ -129,7 +126,7 @@ public class AnniversaryServiceImpl implements AnniversaryService {
             anniversaryMapper.update(existing);
 
             // 清除相关缓存
-            clearListCache(ctx.groupId);
+            clearListCache(ctx);
             clearDetailCache(id);
 
             return Result.success(convertToVO(existing));
@@ -146,7 +143,7 @@ public class AnniversaryServiceImpl implements AnniversaryService {
             anniversaryMapper.deleteById(id);
 
             // 清除相关缓存
-            clearListCache(ctx.groupId);
+            clearListCache(ctx);
             clearDetailCache(id);
 
             return Result.success(null);
@@ -161,36 +158,35 @@ public class AnniversaryServiceImpl implements AnniversaryService {
     private static class UserContext {
         final User user;
         final Long groupId;
+        final Long userId;
 
         UserContext(User user) {
             this.user = user;
             this.groupId = user.getGroupId();
+            this.userId = user.getId();
         }
     }
 
     /**
      * 带用户校验的执行模板
-     * 校验用户存在且已绑定情侣关系
+     * 只校验用户存在；是否绑定情侣不影响使用，未绑定时走个人数据
      */
     private <T> Result<T> withUserValidation(Integer userId, Function<UserContext, Result<T>> action) {
         User user = userMapper.selectById(userId);
         if (user == null) {
             return Result.error(ResultCode.NOT_FOUND, "用户不存在");
         }
-        if (user.getGroupId() == null) {
-            return Result.error(ResultCode.FORBIDDEN, "请先绑定情侣关系");
-        }
         return action.apply(new UserContext(user));
     }
 
     /**
      * 带纪念日校验的执行模板
-     * 校验用户存在、已绑定、纪念日存在且属于该群组
+     * 校验用户存在、纪念日存在且落在自己的归属范围（情侣组或个人）
      */
     private <T> Result<T> withAnniversaryValidation(Integer userId, Long id, 
             AnniversaryAction<T> action) {
         return withUserValidation(userId, ctx -> {
-            Anniversary existing = anniversaryMapper.selectByIdAndGroupId(id, ctx.groupId);
+            Anniversary existing = anniversaryMapper.selectByIdAndGroupOrUser(id, ctx.groupId, ctx.userId);
             if (existing == null) {
                 return Result.error(ResultCode.NOT_FOUND, "纪念日不存在");
             }
@@ -264,10 +260,18 @@ public class AnniversaryServiceImpl implements AnniversaryService {
     }
 
     /**
+     * 纪念日列表缓存 key：绑定时按情侣组，未绑定时按用户个人（加前缀避免组 ID 与用户 ID 撞号）
+     */
+    private String listCacheKey(UserContext ctx) {
+        return AnniversaryConstant.ANNIVERSARY_LIST_PREFIX
+                + (ctx.groupId != null ? "g" + ctx.groupId : "u" + ctx.userId);
+    }
+
+    /**
      * 清除纪念日列表缓存
      */
-    private void clearListCache(Long groupId) {
-        String cacheKey = AnniversaryConstant.ANNIVERSARY_LIST_PREFIX + groupId;
+    private void clearListCache(UserContext ctx) {
+        String cacheKey = listCacheKey(ctx);
         redisTemplate.delete(cacheKey);
         log.debug("已清除纪念日列表缓存, key: {}", cacheKey);
     }

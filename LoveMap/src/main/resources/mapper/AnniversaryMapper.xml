@@ -5,6 +5,7 @@
     <resultMap id="BaseResultMap" type="com.example.lovemap.model.entity.Anniversary">
         <id column="id" property="id"/>
         <result column="group_id" property="groupId"/>
+        <result column="user_id" property="userId"/>
         <result column="name" property="name"/>
         <result column="anniversary_date" property="anniversaryDate"/>
         <result column="is_recurring" property="isRecurring"/>
@@ -15,14 +16,14 @@
     </resultMap>
 
     <sql id="BaseColumns">
-        id, group_id, name, anniversary_date,
+        id, group_id, user_id, name, anniversary_date,
         is_recurring, remind_days, description, created_at, updated_at
     </sql>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO anniversary (group_id, name, anniversary_date,
+        INSERT INTO anniversary (group_id, user_id, name, anniversary_date,
                                  is_recurring, remind_days, description, created_at, updated_at)
-        VALUES (#{groupId}, #{name}, #{anniversaryDate},
+        VALUES (#{groupId}, #{userId}, #{name}, #{anniversaryDate},
                 #{isRecurring}, #{remindDays}, #{description}, NOW(), NOW())
     </insert>
 
@@ -31,14 +32,20 @@
         WHERE id = #{id}
     </select>
 
-    <select id="selectByIdAndGroupId" resultMap="BaseResultMap">
+    <!-- 归属范围：情侣组数据，或未绑定情侣时按创建人归属的个人数据 -->
+    <sql id="GroupOrUserScope">
+        (group_id = #{groupId} OR (group_id IS NULL AND user_id = #{userId}))
+    </sql>
+
+    <select id="selectByIdAndGroupOrUser" resultMap="BaseResultMap">
         SELECT <include refid="BaseColumns"/> FROM anniversary
-        WHERE id = #{id} AND group_id = #{groupId}
+        WHERE id = #{id}
+          AND <include refid="GroupOrUserScope"/>
     </select>
 
-    <select id="selectByGroupId" resultMap="BaseResultMap">
+    <select id="selectByGroupOrUser" resultMap="BaseResultMap">
         SELECT <include refid="BaseColumns"/> FROM anniversary
-        WHERE group_id = #{groupId}
+        WHERE <include refid="GroupOrUserScope"/>
         ORDER BY anniversary_date ASC
     </select>
 

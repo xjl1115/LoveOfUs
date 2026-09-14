@@ -10,8 +10,9 @@ public final class AnniversaryConstant {
 
     /**
      * 纪念日列表 Redis KEY 前缀
-     * 格式：anniversary:list:{groupId} 或 anniversary:list:{userId}
-     * 有 groupId 时用 groupId，否则用 userId
+     * 格式：anniversary:list:g{groupId}（已绑定情侣，组内共享）
+     *       anniversary:list:u{userId}（未绑定情侣，个人数据）
+     * 加 g/u 前缀是为了避免组 ID 与用户 ID 撞号导致缓存串号
      */
     public static final String ANNIVERSARY_LIST_PREFIX = "anniversary:list:";
 

@@ -61,8 +61,8 @@
           </div>
           <div class="item-desc">{{ item.description }}</div>
           <div class="item-meta">
-            <span class="meta-tag" :style="{ color: metaOf(deriveCategory(item.title)).color }">
-              {{ metaOf(deriveCategory(item.title)).emoji }} {{ metaOf(deriveCategory(item.title)).label }}
+            <span class="meta-tag" :style="{ color: metaOf(item).color }">
+              {{ metaOf(item).emoji }} {{ metaOf(item).label }}
             </span>
             <span v-if="item.photoCount" class="meta-tag photo-count">
               <van-icon name="photo-o" /> {{ item.photoCount }}
@@ -182,8 +182,16 @@ const categories: Array<{ value: MustCategory; label: string; emoji: string; col
   { value: 'growth',  label: CATEGORY_META.growth.label,  emoji: CATEGORY_META.growth.emoji,  color: CATEGORY_META.growth.color }
 ]
 
-function metaOf(c: MustCategory) {
-  return CATEGORY_META[c]
+/**
+ * 事项分类：以后端 things.category 为准；为空或未知（老库未执行 V18 迁移）时按「日常」兜底，
+ * 保证每条事项都能落进一个分项，分项之和等于事项总数
+ */
+function categoryOf(item: MustItem): MustCategory {
+  return item.category && CATEGORY_META[item.category] ? item.category : 'daily'
+}
+
+function metaOf(item: MustItem) {
+  return CATEGORY_META[categoryOf(item)]
 }
 
 /**
@@ -196,32 +204,8 @@ function resolveIcon(item: MustItem): string {
 
 const filteredItems = computed(() => {
   if (filterCategory.value === 'all') return items.value
-  return items.value.filter((i) => matchCategory(i.title, filterCategory.value))
+  return items.value.filter((i) => categoryOf(i) === filterCategory.value)
 })
-
-/**
- * 按标题关键词匹配分类（后端没有 category 字段，前端归类）
- */
-function matchCategory(title: string, cat: string): boolean {
-  const map: Record<string, string[]> = {
-    travel:  ['旅行', '日', '火车', '城市', '民宿', '露营', '雪', '海岛', '山', '自行车', '热气球', '接吻', '极光', '跳伞', '夜班', '萤火虫', '故乡', '玻璃栈道'],
-    romance: ['人群', '雨里', '情书', '情侣照', '天台', '烟花', '温泉', 'Surprise', '同一件事', '接吻', '天花板', '跨年', '夜市', '称呼', '表白', '暗号', '陪伴', '见自己', '染一次', '沙滩'],
-    daily:   ['赖床', '早餐', '超市', '打扫', '植物', '宠物', '完整', '读完', '专辑', '爱情', '桌游', '新技能', '手工', '厨房', '沙发上', '按摩', '未来', '孩子', '记账', '深夜散步'],
-    food:    ['拿手菜', '烛光', '早茶', '菜市场', '路边摊', '1000', '早餐店', '烧烤', '小龙虾', '异国', '火锅', '咖啡馆', '蛋糕', '喝酒', '豆浆油条'],
-    memory:  ['相册', '时间线', '纪念日', '礼物', '信', '梦想基金', '票根', '契约', '小时候', '此刻', '同一家', '过去', '愿望清单', '图册', '生日快乐', '礼物清单'],
-    growth:  ['亲密关系', '倾听', '争吵', '理由', '沟通', '目标', '性格', '运动', '表达爱', '公益', '家人', '10 年后']
-  }
-  const keys = (map as Record<string, string[]>)[cat] || []
-  return keys.some((k) => title.includes(k))
-}
-
-function deriveCategory(title: string): MustCategory {
-  const order: MustCategory[] = ['travel', 'romance', 'daily', 'food', 'memory', 'growth']
-  for (const c of order) {
-    if (matchCategory(title, c)) return c
-  }
-  return 'romance'
-}
 
 async function reload() {
   items.value = await listMustItems()

@@ -52,9 +52,6 @@ public class AnniversaryReminderTask {
             List<User> allUsers = userMapper.selectAll();
             
             for (User user : allUsers) {
-                if (user.getGroupId() == null) {
-                    continue;
-                }
                 
                 // 检查用户是否开启了纪念日提醒
                 if (!isAnniversaryNotificationEnabled(user.getId().intValue())) {
@@ -74,8 +71,8 @@ public class AnniversaryReminderTask {
                     continue;
                 }
                 
-                // 查询该用户群组的所有纪念日
-                List<Anniversary> anniversaries = anniversaryMapper.selectByGroupId(user.getGroupId());
+                // 查询该用户可见的纪念日（情侣组共享 + 未绑定情侣时的个人纪念日）
+                List<Anniversary> anniversaries = anniversaryMapper.selectByGroupOrUser(user.getGroupId(), user.getId());
                 
                 for (Anniversary anniversary : anniversaries) {
                     checkAndSendReminder(user, anniversary);

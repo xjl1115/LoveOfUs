@@ -46,6 +46,11 @@ public class ThingsListVO {
     private String icon;
 
     /**
+     * 分类：travel 旅行 / romance 浪漫 / daily 日常 / food 美食 / memory 纪念 / growth 成长
+     */
+    private String category;
+
+    /**
      * 封面 emoji（兼容旧字段；与 icon 取一即可）
      */
     private String coverEmoji;

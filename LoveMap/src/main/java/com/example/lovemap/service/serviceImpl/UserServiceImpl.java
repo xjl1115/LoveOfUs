@@ -144,9 +144,6 @@ public class UserServiceImpl implements UserService {
         if (dto.getNickname().length() > 11) {
             return Result.badRequest("昵称长度需在1-11个字符之间");
         }
-        if (!StringUtils.hasText(dto.getPhone())) {
-            return Result.badRequest("手机号不能为空");
-        }
         if (!StringUtils.hasText(dto.getEmail())) {
             return Result.badRequest("邮箱不能为空");
         }

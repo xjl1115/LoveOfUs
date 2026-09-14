@@ -53,10 +53,17 @@
           </div>
         </template>
         <template v-else>
-          <!-- 流式输出时光标闪烁 -->
-          <span v-if="message.streaming" class="stream-content">{{ message.content }}<span class="caret">▍</span></span>
-          <span v-else-if="message.error" class="error-text">{{ message.content || '发送失败' }}</span>
-          <span v-else style="white-space: pre-wrap">{{ message.content }}</span>
+          <!-- AI 回复按 Markdown 渲染；用户/工具/系统消息保持纯文本 -->
+          <template v-if="isMarkdown">
+            <div class="md-body" v-html="renderedContent"></div>
+            <span v-if="message.streaming" class="caret">▍</span>
+          </template>
+          <template v-else>
+            <!-- 流式输出时光标闪烁 -->
+            <span v-if="message.streaming" class="stream-content">{{ message.content }}<span class="caret">▍</span></span>
+            <span v-else-if="message.error" class="error-text">{{ message.content || '发送失败' }}</span>
+            <span v-else style="white-space: pre-wrap">{{ message.content }}</span>
+          </template>
           <!-- 图片网格：工具返回的照片以缩略图展示 -->
           <div v-if="message.images && message.images.length" class="image-grid">
             <a
@@ -87,12 +94,20 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { ChatMessage } from '@/api/aiChat'
+import { renderMarkdown } from '@/utils/markdown'
 
 const props = defineProps<{
   message: ChatMessage
   showAvatar?: boolean
   showTime?: boolean
 }>()
+
+/** 仅 AI 回复走 Markdown：用户输入保持原样，避免 * _ # 等被误当语法 */
+const isMarkdown = computed(() => props.message.role === 'ai' && !props.message.error)
+
+const renderedContent = computed(() =>
+  isMarkdown.value ? renderMarkdown(props.message.content) : ''
+)
 
 /** 头像图标：系统/工具/AI/用户 */
 const avatarIcon = computed(() => {
@@ -244,6 +259,94 @@ function onImgError(ev: Event) {
 
 .stream-content {
   white-space: pre-wrap;
+}
+
+/* AI 回复的 Markdown 样式：标题/代码等统一收在气泡字号内，避免撑破窄气泡 */
+.md-body {
+  :deep(p) {
+    margin: 0 0 8px;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  :deep(h1),
+  :deep(h2),
+  :deep(h3),
+  :deep(h4),
+  :deep(h5),
+  :deep(h6) {
+    margin: 10px 0 6px;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.4;
+
+    &:first-child {
+      margin-top: 0;
+    }
+  }
+
+  :deep(ul),
+  :deep(ol) {
+    margin: 6px 0;
+    padding-left: 20px;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  :deep(li) {
+    margin: 2px 0;
+  }
+
+  :deep(code) {
+    padding: 1px 4px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.06);
+    font-family: Menlo, Consolas, monospace;
+    font-size: 13px;
+  }
+
+  :deep(pre) {
+    margin: 8px 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #2b2b2b;
+    overflow-x: auto;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  :deep(pre code) {
+    padding: 0;
+    background: transparent;
+    color: #f5f5f5;
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+
+  :deep(blockquote) {
+    margin: 8px 0;
+    padding: 2px 0 2px 10px;
+    border-left: 3px solid $primary-light;
+    color: $text-secondary;
+  }
+
+  :deep(a) {
+    color: $primary-color;
+    text-decoration: underline;
+    word-break: break-all;
+  }
+
+  :deep(hr) {
+    margin: 10px 0;
+    border: none;
+    border-top: 1px solid $border-color;
+  }
 }
 
 .caret {

@@ -28,6 +28,11 @@ export interface MustItem {
    * 后端字段为空（数据库默认 '' 或 NULL）时，前端按 title 推断 emoji。
    */
   icon?: string | null
+  /**
+   * 分类：travel/romance/daily/food/memory/growth
+   * 来自后端 things.category；为空（老库未执行 V18 迁移）时前端按「日常」兜底
+   */
+  category?: MustCategory | null
   /** 兼容旧字段（已弃用） */
   coverEmoji?: string | null
   achievedAt: string | null

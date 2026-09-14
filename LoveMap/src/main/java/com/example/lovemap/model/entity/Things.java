@@ -10,6 +10,7 @@ import lombok.Data;
  *   id          int PK
  *   name        varchar(255)
  *   description text
+ *   category    varchar(16)（分类：travel/romance/daily/food/memory/growth）
  *   completed   int default 0（保留字段，不再使用）
  *
  * 注：实际"谁完成了"的标记存于 things_completion 表，此处 completed 字段保持作为冗余/兜底。
@@ -36,6 +37,11 @@ public class Things {
      * 左侧图标（emoji 文本，如 🌅）
      */
     private String icon;
+
+    /**
+     * 分类：travel 旅行 / romance 浪漫 / daily 日常 / food 美食 / memory 纪念 / growth 成长
+     */
+    private String category;
 
     /**
      * 完成标记 0-未完成 1-已完成（保留字段，新逻辑以 things_completion 为准）

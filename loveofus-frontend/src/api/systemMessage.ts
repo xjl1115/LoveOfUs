@@ -80,8 +80,8 @@ export class NotificationSSE {
   private eventSource: EventSource | null = null
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private reconnectAttempts = 0
-  private maxReconnectAttempts = 10
   private baseReconnectDelay = 1000
+  private maxReconnectDelay = 30000
   private listeners: Map<string, Set<(data: any) => void>> = new Map()
   private closed = false
 
@@ -183,11 +183,11 @@ export class NotificationSSE {
     })
   }
 
-  // 指数退避重连
+  // 指数退避重连：不设次数上限，后端重启 / 长时间断网后仍能自愈（延迟封顶 30s）
   private scheduleReconnect() {
-    if (this.closed || this.reconnectAttempts >= this.maxReconnectAttempts) return
+    if (this.closed) return
 
-    const delay = this.baseReconnectDelay * Math.pow(2, this.reconnectAttempts)
+    const delay = Math.min(this.baseReconnectDelay * Math.pow(2, this.reconnectAttempts), this.maxReconnectDelay)
     this.reconnectAttempts++
 
     this.reconnectTimer = setTimeout(() => {

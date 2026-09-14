@@ -167,9 +167,23 @@ public class ThingsSeedRunner implements ApplicationRunner {
             it.setName(parts[2].trim());
             it.setDescription(parts[3].trim());
             it.setIcon(parts[1].trim());
+            it.setCategory(categoryOfSeed(Integer.parseInt(parts[0].trim())));
             it.setCompleted(0);
             list.add(it);
         }
         return list;
+    }
+
+    /**
+     * 种子分类：与上方各段注释的分组一致
+     * 1-18 旅行 / 19-38 浪漫 / 39-58 日常 / 59-73 美食 / 74-88 纪念 / 89-100 成长
+     */
+    private static String categoryOfSeed(int id) {
+        if (id <= 18) return "travel";
+        if (id <= 38) return "romance";
+        if (id <= 58) return "daily";
+        if (id <= 73) return "food";
+        if (id <= 88) return "memory";
+        return "growth";
     }
 }

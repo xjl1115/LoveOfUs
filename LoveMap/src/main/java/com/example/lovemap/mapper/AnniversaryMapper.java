@@ -23,14 +23,17 @@ public interface AnniversaryMapper {
     Anniversary selectById(@Param("id") Long id);
 
     /**
-     * 根据ID和群组ID查询（校验权限）
+     * 根据ID查询（情侣组数据，或未绑定情侣时创建人为本人的个人数据）
      */
-    Anniversary selectByIdAndGroupId(@Param("id") Long id, @Param("groupId") Long groupId);
+    Anniversary selectByIdAndGroupOrUser(@Param("id") Long id,
+                                         @Param("groupId") Long groupId,
+                                         @Param("userId") Long userId);
 
     /**
-     * 查询群组的所有纪念日（情侣共享）
+     * 查询归属当前用户的所有纪念日（情侣组数据 + 未绑定情侣时本人的个人数据）
      */
-    List<Anniversary> selectByGroupId(@Param("groupId") Long groupId);
+    List<Anniversary> selectByGroupOrUser(@Param("groupId") Long groupId,
+                                          @Param("userId") Long userId);
 
     /**
      * 更新纪念日

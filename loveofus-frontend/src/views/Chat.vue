@@ -413,6 +413,10 @@ async function doMarkAllRead() {
 }
 
 // WebSocket
+let reconnectTimer: number | null = null
+// 主动断开（离开聊天页/登出）标记：onclose 据此跳过自动重连，避免组件卸载后"幽灵 WS"复活
+let manualClose = false
+
 function connect() {
   const token = userStore.token
   if (!token) {
@@ -421,6 +425,7 @@ function connect() {
   }
   if (ws.value && ws.value.readyState === WebSocket.OPEN) return
 
+  manualClose = false
   const url = buildChatWsUrl(token)
   ws.value = new WebSocket(url)
 
@@ -440,8 +445,14 @@ function connect() {
 
   ws.value.onclose = () => {
     connected.value = false
-    // 5s 自动重连
-    setTimeout(() => {
+    // 主动断开（离开聊天页/登出）不重连；只有意外断线才 5s 后重连
+    if (manualClose) {
+      manualClose = false
+      return
+    }
+    if (reconnectTimer) clearTimeout(reconnectTimer)
+    reconnectTimer = window.setTimeout(() => {
+      reconnectTimer = null
       if (!connected.value) connect()
     }, 5000)
   }
@@ -534,7 +545,12 @@ function connect() {
 }
 
 function disconnect() {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
   if (ws.value) {
+    manualClose = true
     ws.value.close()
     ws.value = null
   }

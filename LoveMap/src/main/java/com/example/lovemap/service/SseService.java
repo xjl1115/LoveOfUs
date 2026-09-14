@@ -5,8 +5,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -19,9 +19,13 @@ public class SseService {
 
     /**
      * 用户 SSE 连接池
-     * key: userId, value: SseEmitter
+     * key: userId, value: 该用户当前所有活跃连接
+     * <p>
+     * 同一账号允许多条连接共存（多窗口 / 多设备各自独立）：
+     * 旧实现一个用户只保留一条连接，新连接会把旧连接 complete 掉，
+     * 两端会互相抢通道，导致未读数、已读回执等 SSE 事件被静默丢弃。
      */
-    private final Map<Integer, SseEmitter> emitterMap = new ConcurrentHashMap<>();
+    private final Map<Integer, Set<SseEmitter>> emitterMap = new ConcurrentHashMap<>();
 
     /**
      * SSE 超时时间（毫秒），从配置文件读取
@@ -39,37 +43,51 @@ public class SseService {
         if (userId == null) {
             throw new IllegalArgumentException("userId cannot be null");
         }
-        // 关闭旧连接
-        closeConnection(userId);
 
         // 创建新的 SseEmitter，设置超时时间
         SseEmitter emitter = new SseEmitter(sseTimeout);
 
-        // 设置回调
+        // 回调按"连接实例"移除，避免旧连接的回调误删同一用户的新连接
         emitter.onCompletion(() -> {
             log.debug("SSE连接完成, userId: {}", userId);
-            emitterMap.remove(userId);
+            removeConnection(userId, emitter);
         });
 
         emitter.onTimeout(() -> {
             log.debug("SSE连接超时, userId: {}", userId);
-            emitterMap.remove(userId);
+            removeConnection(userId, emitter);
         });
 
         emitter.onError((e) -> {
             log.warn("SSE连接错误, userId: {}, error: {}", userId, e.getMessage());
-            emitterMap.remove(userId);
+            removeConnection(userId, emitter);
         });
 
         // 保存连接
-        emitterMap.put(userId, emitter);
-        log.info("SSE连接创建成功, userId: {}, 当前连接数: {}", userId, emitterMap.size());
+        Set<SseEmitter> connections = emitterMap.computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet());
+        connections.add(emitter);
+        log.info("SSE连接创建成功, userId: {}, 该用户连接数: {}, 有连接用户数: {}",
+                userId, connections.size(), emitterMap.size());
 
         return emitter;
     }
 
     /**
-     * 关闭指定用户的 SSE 连接
+     * 移除单条连接；仅当该用户已无任何连接时才删除用户条目
+     */
+    private void removeConnection(Integer userId, SseEmitter emitter) {
+        Set<SseEmitter> connections = emitterMap.get(userId);
+        if (connections == null) {
+            return;
+        }
+        connections.remove(emitter);
+        if (connections.isEmpty()) {
+            emitterMap.remove(userId, connections);
+        }
+    }
+
+    /**
+     * 关闭指定用户的全部 SSE 连接（登出/踢下线时使用）
      *
      * @param userId 用户ID
      */
@@ -77,8 +95,11 @@ public class SseService {
         if (userId == null) {
             return;
         }
-        SseEmitter emitter = emitterMap.remove(userId);
-        if (emitter != null) {
+        Set<SseEmitter> connections = emitterMap.remove(userId);
+        if (connections == null) {
+            return;
+        }
+        for (SseEmitter emitter : connections) {
             try {
                 emitter.complete();
             } catch (Exception e) {
@@ -95,27 +116,30 @@ public class SseService {
      * @param data      事件数据
      */
     public void sendEvent(Integer userId, String eventName, Object data) {
-        SseEmitter emitter = emitterMap.get(userId);
-        if (emitter == null) {
+        Set<SseEmitter> connections = emitterMap.get(userId);
+        if (connections == null || connections.isEmpty()) {
             log.debug("用户SSE连接不存在, userId: {}, event: {}", userId, eventName);
             return;
         }
 
-        try {
-            emitter.send(SseEmitter.event()
-                    .name(eventName)
-                    .data(data));
-            log.debug("SSE事件推送成功, userId: {}, event: {}", userId, eventName);
-        } catch (IOException e) {
-            log.warn("SSE事件推送失败, userId: {}, event: {}, error: {}", userId, eventName, e.getMessage());
-            emitterMap.remove(userId);
+        // 广播给该用户的所有连接；失败的连接单独摘除，不影响其余连接
+        for (SseEmitter emitter : connections) {
+            try {
+                emitter.send(SseEmitter.event()
+                        .name(eventName)
+                        .data(data));
+                log.debug("SSE事件推送成功, userId: {}, event: {}", userId, eventName);
+            } catch (Exception e) {
+                log.warn("SSE事件推送失败, userId: {}, event: {}, error: {}", userId, eventName, e.getMessage());
+                removeConnection(userId, emitter);
+            }
         }
     }
 
     /**
-     * 获取当前在线连接数
+     * 获取当前有 SSE 连接的用户数
      *
-     * @return 连接数
+     * @return 用户数
      */
     public int getOnlineCount() {
         return emitterMap.size();

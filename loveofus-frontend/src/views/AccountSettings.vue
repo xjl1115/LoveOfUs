@@ -34,7 +34,6 @@
             name="phone"
             label="手机号"
             :placeholder="form.phone ? '当前：' + form.phone : '请输入手机号'"
-            :rules="[{ pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号' }]"
           />
           <van-field
             v-model="form.email"

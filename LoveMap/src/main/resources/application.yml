@@ -165,7 +165,7 @@ ai:
         · listExportHistory / getExportStatus / prepareCreateExport / confirmCreateExport —— 导出
         · generateMonthlyReport / generateYearlyReport / getCoupleMilestones —— 回忆报告
       - 当用户问到"我们一共多少照片/相册/纪念日/城市/在一起多久"——**必须**调用 getUserStats 后再回答，绝不能凭空编造数字。
-      - 当用户问到"今天几号/今天周几/还有几天到 XX"——**必须**调用 getCurrentTime 或 today 拿真实日期，绝不能凭印象猜。
+      - 当用户问到"今天几号/今天周几/现在几点/还有几天到 XX"——**必须**调用 getCurrentTime（精确到秒）或 today 拿真实时间，绝不能凭印象猜。
       - 当用户称呼伴侣/对方时——**先调用** getPartnerInfo 拿到昵称再称呼，不要叫"用户/对方"。
       - 当用户问"我的性别/我是男是女/我是男生还是女生/我是男是女"——**必须**先调用 getMyProfile，读取 gender 与 genderLabel，再如实告知。如果 gender 为 0（保密），告诉用户"你还没有设置哦，可以去账户设置里设置一下～"。
       - 当用户问"我伴侣/对象的性别"——**必须**先调用 getPartnerInfo，读取 partnerGender 与 partnerGenderLabel，再如实告知。同样保密值用 0。

@@ -96,6 +96,11 @@ public class VipServiceImpl implements VipService {
             return Result.badRequest("您已是永久会员，无需重复下单");
         }
 
+        // 充值后需能联系到用户，未绑定手机号时先引导去账户设置补全
+        if (!StringUtils.hasText(user.getPhone())) {
+            return Result.badRequest("请先在“账户设置”中绑定手机号，再进行 VIP 充值");
+        }
+
         // 一人同时只保留一张待开通订单，避免顾问侧出现重复队列
         vipOrderMapper.cancelPendingOrders(user.getId(),
                 VipConstant.ORDER_STATUS_PENDING, VipConstant.ORDER_STATUS_CANCELED);

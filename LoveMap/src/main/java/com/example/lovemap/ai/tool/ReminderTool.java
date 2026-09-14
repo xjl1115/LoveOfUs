@@ -153,10 +153,11 @@ public class ReminderTool {
                 }
             }
             if (vo == null) return Map.of("error", "纪念日已不存在");
-            // vo 没有 groupId 字段，通过当前 user 反查
+            // vo 没有 groupId 字段，通过当前 user 反查；未绑定情侣时 groupId 为 null，按个人归属
             com.example.lovemap.model.entity.User me = userMapper.selectById(userId.intValue());
-            if (me == null || me.getGroupId() == null) return Map.of("error", "无法获取 groupId");
+            if (me == null) return Map.of("error", "用户不存在");
             anniv.setGroupId(me.getGroupId());
+            anniv.setUserId(me.getId());
             anniv.setAnniversaryDate(vo.getAnniversaryDate());
             anniv.setRemindDays(pending.days.getFirst());
             anniv.setIsRecurring(vo.getIsRecurring());
