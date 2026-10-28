@@ -10,6 +10,7 @@
         <result column="original_key" property="originalKey"/>
         <result column="scene_code" property="sceneCode"/>
         <result column="scene_text" property="sceneText"/>
+        <result column="quota_source" property="quotaSource"/>
         <result column="face_features" property="faceFeatures"/>
         <result column="suggestions" property="suggestions"/>
         <result column="summary" property="summary"/>
@@ -25,7 +26,7 @@
 
     <sql id="BaseColumns">
         id, user_id, partner_id, original_url, original_key,
-        scene_code, scene_text, face_features, suggestions, summary,
+        scene_code, scene_text, quota_source, face_features, suggestions, summary,
         after_url, after_key, status, error_message, cost_ms,
         deleted, created_at, updated_at
     </sql>
@@ -34,11 +35,11 @@
             useGeneratedKeys="true" keyProperty="id">
         INSERT INTO makeover_record
             (user_id, partner_id, original_url, original_key,
-             scene_code, scene_text, suggestions, status, deleted,
+             scene_code, scene_text, quota_source, suggestions, status, deleted,
              created_at, updated_at)
         VALUES
             (#{userId}, #{partnerId}, #{originalUrl}, #{originalKey},
-             #{sceneCode}, #{sceneText}, #{suggestions}, #{status}, #{deleted},
+             #{sceneCode}, #{sceneText}, #{quotaSource}, #{suggestions}, #{status}, #{deleted},
              NOW(), NOW())
     </insert>
 
@@ -95,12 +96,20 @@
     </select>
 
     <!-- 额度统计不过滤 deleted：删除历史记录不应返还当月额度 -->
-    <select id="countMonthlyByUser" resultType="long">
+    <select id="countBySourceInPeriod" resultType="long">
         SELECT COUNT(*)
         FROM makeover_record
         WHERE user_id = #{userId}
+          AND quota_source = #{quotaSource}
           AND created_at &gt;= #{start}
           AND created_at &lt; #{end}
+    </select>
+
+    <select id="countBySource" resultType="long">
+        SELECT COUNT(*)
+        FROM makeover_record
+        WHERE user_id = #{userId}
+          AND quota_source = #{quotaSource}
     </select>
 
 </mapper>

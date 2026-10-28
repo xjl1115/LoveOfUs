@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.lovemap.mapper.UserTaskMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.lovemap.model.entity.UserTask">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="task_id" property="taskId"/>
+        <result column="period_type" property="periodType"/>
+        <result column="period_key" property="periodKey"/>
+        <result column="status" property="status"/>
+        <result column="progress" property="progress"/>
+        <result column="completed_at" property="completedAt"/>
+        <result column="claimed_at" property="claimedAt"/>
+        <result column="points_awarded" property="pointsAwarded"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <!-- 幂等落行：并发下由唯一键 uk_user_task_period 兜底 -->
+    <insert id="insertIgnore">
+        INSERT IGNORE INTO user_task (user_id, task_id, period_type, period_key, status, progress)
+        VALUES (#{userId}, #{taskId}, #{periodType}, #{periodKey}, 0, 0)
+    </insert>
+
+    <!-- 标记完成：仅当仍处于「未完成」时生效，受影响行数=1 表示本次才真正完成 -->
+    <update id="markCompleted">
+        UPDATE user_task
+        SET status = 1,
+            progress = 1,
+            completed_at = NOW(),
+            updated_at = NOW()
+        WHERE user_id = #{userId}
+          AND task_id = #{taskId}
+          AND period_key = #{periodKey}
+          AND status = 0
+    </update>
+
+    <!-- 标记已领取：仅当处于「已完成待领取」时生效 -->
+    <update id="markClaimed">
+        UPDATE user_task
+        SET status = 2,
+            claimed_at = NOW(),
+            points_awarded = #{pointsAwarded},
+            updated_at = NOW()
+        WHERE user_id = #{userId}
+          AND task_id = #{taskId}
+          AND period_key = #{periodKey}
+          AND status = 1
+    </update>
+
+    <select id="selectByUserAndPeriodKeys" resultMap="BaseResultMap">
+        SELECT id, user_id, task_id, period_type, period_key, status, progress,
+               completed_at, claimed_at, points_awarded, created_at, updated_at
+        FROM user_task
+        WHERE user_id = #{userId}
+          AND period_key IN
+        <foreach collection="periodKeys" item="key" open="(" separator="," close=")">
+            #{key}
+        </foreach>
+    </select>
+
+    <delete id="deleteDailyBefore">
+        DELETE FROM user_task
+        WHERE period_type = 'daily'
+          AND period_key &lt; #{beforeKey}
+    </delete>
+
+</mapper>

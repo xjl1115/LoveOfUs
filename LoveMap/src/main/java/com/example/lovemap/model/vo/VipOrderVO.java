@@ -2,6 +2,7 @@ package com.example.lovemap.model.vo;
 
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -28,9 +29,29 @@ public class VipOrderVO {
     private String vipLevelName;
 
     /**
+     * 订单类型：1=VIP 卡，2=次卡
+     */
+    private Integer orderType;
+
+    /**
+     * 次卡配额类型：1=AI化妆 2=AI约会 3=AI心愿
+     */
+    private Integer quotaType;
+
+    /**
+     * 次卡配额类型名称
+     */
+    private String quotaTypeName;
+
+    /**
+     * 次卡次数
+     */
+    private Integer quotaCount;
+
+    /**
      * 价格（元）
      */
-    private Integer priceYuan;
+    private BigDecimal priceYuan;
 
     /**
      * 订单状态：0-待开通，1-已开通，2-已取消

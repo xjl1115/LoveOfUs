@@ -5,6 +5,7 @@ import com.example.lovemap.common.ResultCode;
 import com.example.lovemap.common.ServiceHelper;
 import com.example.lovemap.common.constant.AlbumConstant;
 import com.example.lovemap.common.constant.PhotoConstant;
+import com.example.lovemap.common.constant.PointsConstant;
 import com.example.lovemap.common.constant.UserConstant;
 import com.example.lovemap.mapper.AlbumMapper;
 import com.example.lovemap.mapper.PhotoAlbumMapper;
@@ -24,6 +25,7 @@ import com.example.lovemap.service.EmailNotificationService;
 import com.example.lovemap.service.NotificationService;
 import com.example.lovemap.service.PhotoService;
 import com.example.lovemap.service.UserService;
+import com.example.lovemap.service.UserTaskTriggerService;
 import com.example.lovemap.utils.AliyunOSSUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -67,6 +69,7 @@ public class PhotoServiceImpl implements PhotoService {
     private final ObjectMapper objectMapper;
     private final NotificationService notificationService;
     private final EmailNotificationService emailNotificationService;
+    private final UserTaskTriggerService userTaskTriggerService;
 
     // Lua 脚本（延迟加载）
     private DefaultRedisScript<Long> lockAcquireScript;
@@ -265,6 +268,9 @@ public class PhotoServiceImpl implements PhotoService {
                     notifyPartner(userId, nickname + " 向 《" + albumName + "》 上传了 " + count + " 张新照片");
                 }
             });
+
+            // 上传成功 → 系统自动识别「上传照片」类情侣任务（失败不影响上传）
+            userTaskTriggerService.onEvent(userId, PointsConstant.COMPLETE_PHOTO_UPLOAD);
 
             if (failedFiles.isEmpty()) {
                 log.info("用户 {} 上传 {} 张照片成功, albumId: {}", userId, photoIds.size(), albumId);

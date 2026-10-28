@@ -68,6 +68,15 @@ public interface AuthService {
     Result<Void> resetPassword(PasswordResetDTO dto);
 
     /**
+     * 修改密码（已登录用户通过旧密码改密）
+     *
+     * @param userId 用户ID
+     * @param dto    修改密码请求
+     * @return 操作结果
+     */
+    Result<Void> changePassword(Integer userId, PasswordChangeDTO dto);
+
+    /**
      * 绑定伴侣
      */
     Result<Void> bindPartner(Integer userId, BindPartnerDTO dto);

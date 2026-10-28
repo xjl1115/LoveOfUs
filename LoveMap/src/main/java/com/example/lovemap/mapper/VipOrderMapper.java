@@ -1,6 +1,8 @@
 package com.example.lovemap.mapper;
 
+import com.example.lovemap.model.dto.VipOrderHistoryQueryDTO;
 import com.example.lovemap.model.entity.VipOrder;
+import com.example.lovemap.model.vo.VipOrderHistoryVO;
 import com.example.lovemap.model.vo.VipPendingOrderVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -32,9 +34,13 @@ public interface VipOrderMapper {
                      @Param("activatedAt") LocalDateTime activatedAt);
 
     /**
-     * 把该用户的待开通订单全部置为已取消
+     * 把本人或同 groupId 下的待开通订单全部置为已取消
+     *
+     * @param userId  本人 ID
+     * @param groupId 当前用户所属情侣组 ID，可为 null（仅按 userId 取消）
      */
     int cancelPendingOrders(@Param("userId") Long userId,
+                            @Param("groupId") Long groupId,
                             @Param("pendingStatus") Integer pendingStatus,
                             @Param("canceledStatus") Integer canceledStatus);
 
@@ -62,4 +68,38 @@ public interface VipOrderMapper {
     int cancelPendingOrder(@Param("id") Long id,
                            @Param("pendingStatus") Integer pendingStatus,
                            @Param("canceledStatus") Integer canceledStatus);
+
+    /**
+     * 多条件分页查询订单历史（顾问侧，全状态）
+     */
+    List<VipOrderHistoryVO> selectOrderHistory(@Param("query") VipOrderHistoryQueryDTO query);
+
+    /**
+     * 多条件查询订单历史总数
+     */
+    long countOrderHistory(@Param("query") VipOrderHistoryQueryDTO query);
+
+    /**
+     * 查询本人或同 groupId 下所有待开通订单（按创建时间升序，先创建的最早被取消）
+     *
+     * @param userId        当前用户 ID
+     * @param groupId       当前用户所属情侣组 ID，可为 null
+     * @param pendingStatus 待开通状态码
+     */
+    List<VipOrder> selectPendingOrdersByGroup(@Param("userId") Long userId,
+                                              @Param("groupId") Long groupId,
+                                              @Param("pendingStatus") Integer pendingStatus);
+
+    /**
+     * 统计某用户已开通次卡的累计入账次数（次卡入账来源）
+     * <p>
+     * 入账不写 quota_log：quota_log 是"使用流水"，剩余次数 = 额度 - 已用流水，
+     * 入账写进去会被算成已用，导致次数不增反减。
+     * 次卡入账不过期、不按周期重置，故不限定时间范围。
+     *
+     * @param userId    下单用户 ID
+     * @param quotaType 次卡产品类型（1=AI化妆 2=AI约会 3=AI心愿）
+     */
+    int sumActivatedQuotaCount(@Param("userId") Long userId,
+                               @Param("quotaType") Integer quotaType);
 }

@@ -12,6 +12,7 @@ import {
   heartbeatChatPage,
   leaveChatPage,
   clearChatHistory,
+  uploadChatAttachment,
   deleteMessage as apiDeleteMessage,
   deleteMessagesBatch as apiDeleteMessagesBatch,
   recallMessage as apiRecallMessage,
@@ -33,6 +34,14 @@ const ws = ref<WebSocket | null>(null)
 const connected = ref(false)
 const peerTyping = ref(false)
 const messagesEndRef = ref<HTMLDivElement | null>(null)
+const fileInputRef = ref<HTMLInputElement | null>(null)
+/** 待发送附件：选中后仅本地预览，点"发送"才上传 OSS */
+const pendingAttachments = ref<{ file: File; url: string }[]>([])
+/** 附件上传中（发送阶段，禁用输入区避免重复提交） */
+const uploadingAttachment = ref(false)
+
+/** 单个聊天附件大小上限（与后端 /chat/attachment 保持一致：20MB） */
+const MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024
 
 // 当前登录用户 ID（兼容 id / userId 字段，登录返回的 UserInfoVO 使用 id）
 // Number() 强转避免后端 Long / Integer 与前端 number 在 === 比较时出现类型不一致
@@ -588,9 +597,11 @@ function onInputChange() {
   sendTyping()
 }
 
-function sendMessage() {
+async function sendMessage() {
   const text = inputText.value.trim()
-  if (!text) return
+  const hasPending = pendingAttachments.value.length > 0
+  if (!text && !hasPending) return
+  if (sending.value || uploadingAttachment.value) return
 
   // WS 未就绪：连接中时等待 2s 再发，仍连不上才报错
   if (!ws.value || ws.value.readyState !== WebSocket.OPEN) {
@@ -610,14 +621,19 @@ function sendMessage() {
   }
 
   // 兼容后端 UserVO：partner 对象携带伴侣 ID；旧 partnerId 字段保留兼容
-  const partnerId =
-    userStore.userInfo?.partnerId ||
-    (userStore.userInfo?.partner as any)?.id ||
-    0
+  const partnerId = currentPartnerId()
   if (!partnerId) {
     showToast('请先绑定伴侣')
     return
   }
+
+  // 1. 附件：此时才上传 OSS，上传成功后逐条通过 WebSocket 发出
+  if (hasPending) {
+    await uploadPendingAttachments()
+  }
+
+  // 2. 文本内容
+  if (!text) return
 
   sending.value = true
   const clientMsgId = `c_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
@@ -644,6 +660,141 @@ function sendMessage() {
   inputText.value = ''
   sending.value = false
   scrollToBottom()
+}
+
+/** 输入框左侧 + 号：触发附件选择 */
+function triggerFilePicker() {
+  if (uploadingAttachment.value) return
+  fileInputRef.value?.click()
+}
+
+/** 当前绑定的伴侣 ID（兼容 partner 对象 / partnerId 旧字段） */
+function currentPartnerId(): number {
+  return (
+    userStore.userInfo?.partnerId ||
+    (userStore.userInfo?.partner as any)?.id ||
+    0
+  )
+}
+
+/**
+ * 发送一条附件消息：
+ * 图片 msg_type=2（imageUrl 即图片地址）；普通文件 msg_type=3（文件名/大小存 extraJson）
+ */
+function sendAttachmentMessage(file: File, url: string) {
+  const isImage = file.type.startsWith('image/')
+  const msgType = isImage ? 2 : 3
+  const extraJson = isImage
+    ? undefined
+    : JSON.stringify({ fileName: file.name, fileSize: file.size })
+  const clientMsgId = `c_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+
+  // 乐观更新：先显示本地消息（附件已在 OSS，无需本地 blob）
+  messages.value.push({
+    id: undefined,
+    senderId: currentUserId.value,
+    receiverId: currentPartnerId(),
+    content: '',
+    imageUrl: url,
+    msgType,
+    extraJson,
+    isRead: 0,
+    createdAt: new Date().toISOString(),
+    ...({ clientMsgId } as any)
+  } as any)
+
+  const payload: WsChatMessage = {
+    type: 'CHAT',
+    clientMsgId,
+    content: '',
+    imageUrl: url,
+    msgType,
+    extraJson
+  }
+  try {
+    ws.value?.send(JSON.stringify(payload))
+  } catch (e) {
+    console.warn('[chat] 附件消息发送失败', e)
+  }
+  scrollToBottom()
+}
+
+/** 选择附件：只做本地预览，点"发送"才上传 OSS */
+function onAttachmentChange(ev: Event) {
+  const input = ev.target as HTMLInputElement
+  const files = input.files ? Array.from(input.files) : []
+  // 立刻清空 value，保证下次选择同一文件也能触发 change
+  input.value = ''
+  if (files.length === 0) return
+
+  for (const file of files) {
+    if (file.size > MAX_ATTACHMENT_SIZE) {
+      showToast(`"${file.name}" 超过 20MB，无法发送`)
+      continue
+    }
+    pendingAttachments.value.push({ file, url: URL.createObjectURL(file) })
+  }
+}
+
+/** 移除单个待发送附件（仅本地预览，未上传） */
+function removePendingAttachment(idx: number) {
+  const item = pendingAttachments.value[idx]
+  if (!item) return
+  URL.revokeObjectURL(item.url)
+  pendingAttachments.value.splice(idx, 1)
+}
+
+/** 发送阶段：逐个上传待发送附件，成功即发出，失败保留在预览条供重试 */
+async function uploadPendingAttachments() {
+  uploadingAttachment.value = true
+  const remain: { file: File; url: string }[] = []
+  let success = 0
+  for (const item of pendingAttachments.value) {
+    try {
+      const info = await uploadChatAttachment(item.file)
+      if (info?.url) {
+        sendAttachmentMessage(item.file, info.url)
+        // 消息已改用 OSS 地址展示，本地预览 URL 可以释放
+        URL.revokeObjectURL(item.url)
+        success++
+      } else {
+        remain.push(item)
+      }
+    } catch (e) {
+      console.warn('[chat] 附件上传失败', e)
+      remain.push(item)
+    }
+  }
+  pendingAttachments.value = remain
+  uploadingAttachment.value = false
+  if (remain.length > 0) {
+    showToast(`${success} 个已发送，${remain.length} 个上传失败，可重试`)
+  }
+}
+
+/** 从附件消息的 extraJson 中取出文件名/大小 */
+function attachmentMeta(msg: ChatMessageVO): { fileName: string; fileSize: number } {
+  if (msg.extraJson) {
+    try {
+      const data = JSON.parse(msg.extraJson)
+      return {
+        fileName: String(data?.fileName || '附件'),
+        fileSize: Number(data?.fileSize || 0)
+      }
+    } catch {
+      // extraJson 非合法 JSON 时回落到默认值
+    }
+  }
+  return { fileName: '附件', fileSize: 0 }
+}
+
+/** 附件大小展示文案 */
+function attachmentSizeText(msg: ChatMessageVO): string {
+  const size = attachmentMeta(msg).fileSize
+  if (!size) return ''
+  if (size < 1024) return `${size} B`
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
+  return `${(size / 1024 / 1024).toFixed(1)} MB`
 }
 
 function formatTime(s?: string) {
@@ -939,6 +1090,9 @@ onBeforeUnmount(() => {
     ssePartnerOnlineHandler = null
   }
   leaveChatPage().catch(() => {})
+  // 释放未发送附件的本地预览 URL，避免内存泄漏
+  pendingAttachments.value.forEach((p) => URL.revokeObjectURL(p.url))
+  pendingAttachments.value = []
   // 注销登出事件监听，避免内存泄漏
   window.removeEventListener('lovemap:before-logout', onBeforeLogout as EventListener)
 })
@@ -1091,6 +1245,32 @@ if (typeof window !== 'undefined') {
                   <div v-if="wishCardNote(msg)" class="wish-share-note">{{ wishCardNote(msg) }}</div>
                 </div>
               </div>
+              <!-- 图片消息（msg_type=2） -->
+              <a
+                v-else-if="msg.msgType === 2 && msg.imageUrl"
+                class="msg-image"
+                :href="msg.imageUrl"
+                target="_blank"
+                rel="noopener"
+              >
+                <img :src="msg.imageUrl" alt="图片" />
+              </a>
+              <!-- 文件附件消息（msg_type=3） -->
+              <a
+                v-else-if="msg.msgType === 3 && msg.imageUrl"
+                class="msg-file"
+                :href="msg.imageUrl"
+                target="_blank"
+                rel="noopener"
+              >
+                <span class="msg-file-icon">📎</span>
+                <span class="msg-file-info">
+                  <span class="msg-file-name">{{ attachmentMeta(msg).fileName }}</span>
+                  <span v-if="attachmentSizeText(msg)" class="msg-file-size">
+                    {{ attachmentSizeText(msg) }}
+                  </span>
+                </span>
+              </a>
               <!-- 普通文本消息 -->
               <div v-else class="bubble-text">{{ msg.content }}</div>
               <div class="bubble-meta">
@@ -1125,23 +1305,63 @@ if (typeof window !== 'undefined') {
     </div>
 
     <div class="chat-input-bar">
-      <van-field
-        v-model="inputText"
-        class="input"
-        placeholder="💭 说点什么吧…"
-        :border="false"
-        @input="onInputChange"
-        @compositionstart="onCompositionStart"
-        @compositionend="onCompositionEnd"
-        @keyup.enter="sendMessage"
-      />
-      <van-button
-        type="primary"
-        size="small"
-        :loading="sending"
-        :disabled="!inputText.trim()"
-        @click="sendMessage"
-      >发送</van-button>
+      <!-- 待发送附件预览条：选中即显示，可点 × 移除；点"发送"才会上传 OSS -->
+      <div v-if="pendingAttachments.length > 0" class="pending-strip">
+        <div class="pending-inner">
+          <div
+            v-for="(item, idx) in pendingAttachments"
+            :key="item.url"
+            class="pending-thumb"
+          >
+            <img v-if="item.file.type.startsWith('image/')" :src="item.url" alt="预览" />
+            <span v-else class="pending-file-icon">📎</span>
+            <button
+              type="button"
+              class="pending-close"
+              title="移除"
+              @click="removePendingAttachment(idx)"
+            >
+              <van-icon name="cross" size="12" />
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="chat-input-row">
+        <!-- 输入框左侧 + 号：添加图片/文件附件（点"发送"才上传） -->
+        <button
+          type="button"
+          class="plus-btn"
+          :disabled="uploadingAttachment"
+          :title="uploadingAttachment ? '上传中…' : '添加图片/文件'"
+          @click="triggerFilePicker"
+        >
+          <van-icon :name="uploadingAttachment ? 'loading' : 'plus'" size="20" />
+        </button>
+        <input
+          ref="fileInputRef"
+          type="file"
+          multiple
+          hidden
+          @change="onAttachmentChange"
+        />
+        <van-field
+          v-model="inputText"
+          class="input"
+          placeholder="💭 说点什么吧…"
+          :border="false"
+          @input="onInputChange"
+          @compositionstart="onCompositionStart"
+          @compositionend="onCompositionEnd"
+          @keyup.enter="sendMessage"
+        />
+        <van-button
+          type="primary"
+          size="small"
+          :loading="sending || uploadingAttachment"
+          :disabled="!inputText.trim() && pendingAttachments.length === 0"
+          @click="sendMessage"
+        >发送</van-button>
+      </div>
     </div>
 
     <!-- 长按消息弹出的操作菜单 -->
@@ -1662,9 +1882,10 @@ if (typeof window !== 'undefined') {
   40% { opacity: 1; transform: translateY(-2px); }
 }
 .chat-input-bar {
+  /* 纵向布局：待发送附件预览条在上，真实输入行在下 */
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
   padding: 8px 10px;
   /* iPhone X+ 等带底部安全区的机型：让输入框上移，避免被 home indicator 遮挡 */
   padding-bottom: calc(8px + env(safe-area-inset-bottom));
@@ -1672,6 +1893,65 @@ if (typeof window !== 'undefined') {
   border-top: 1px solid #ebedf0;
   /* 关键：防止输入栏被 flex 收缩挤出视口 */
   flex-shrink: 0;
+}
+/* 真实输入行：+ 号、输入框、发送按钮 */
+.chat-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* 待发送附件预览条 */
+.pending-strip {
+  width: 100%;
+}
+.pending-inner {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.pending-inner::-webkit-scrollbar {
+  display: none;
+}
+.pending-thumb {
+  position: relative;
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f7f8fa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pending-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.pending-file-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+.pending-close {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
 }
 .input {
   flex: 1;
@@ -1681,5 +1961,61 @@ if (typeof window !== 'undefined') {
 }
 :deep(.van-field__control) {
   font-size: 15px;
+}
+/* 输入框左侧 + 号：上传图片/文件附件 */
+.plus-btn {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: #f7f8fa;
+  color: #666;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.plus-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+/* 图片附件气泡 */
+.msg-image {
+  display: block;
+  max-width: 180px;
+}
+.msg-image img {
+  display: block;
+  width: 100%;
+  border-radius: 8px;
+}
+/* 文件附件气泡 */
+.msg-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 200px;
+  color: inherit;
+  text-decoration: none;
+}
+.msg-file-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+.msg-file-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.msg-file-name {
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.msg-file-size {
+  font-size: 12px;
+  color: #999;
 }
 </style>

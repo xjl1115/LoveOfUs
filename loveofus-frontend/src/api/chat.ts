@@ -143,6 +143,31 @@ export function recallMessage(messageId: number) {
   return request.post<boolean>(`/chat/message/${messageId}/recall`)
 }
 
+/**
+ * 聊天附件上传结果
+ */
+export interface ChatAttachmentVO {
+  /** 附件访问 URL */
+  url: string
+  /** 原始文件名 */
+  fileName?: string
+  /** 文件大小（字节） */
+  fileSize?: number
+  /** 文件 MIME 类型 */
+  contentType?: string
+}
+
+/**
+ * 上传聊天附件（图片 / 普通文件），返回可直接访问的 URL
+ */
+export function uploadChatAttachment(file: File) {
+  const fd = new FormData()
+  fd.append('file', file)
+  return request.post<ChatAttachmentVO>('/chat/attachment', fd, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+}
+
 export function buildChatWsUrl(token: string): string {
   const base = import.meta.env.VITE_API_BASE_URL || '/api'
   const cleaned = base.replace(/\/$/, '')

@@ -2,6 +2,7 @@ package com.example.lovemap.model.vo;
 
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -23,7 +24,7 @@ public class VipTierVO {
     /**
      * 价格（元）
      */
-    private Integer priceYuan;
+    private BigDecimal priceYuan;
 
     /**
      * 时长文案：如 "7天" / "永久"

@@ -105,6 +105,30 @@ vip:
   admin-token: ${VIP_ADMIN_TOKEN:}
   # 对外访问地址（末尾不带 /），用于生成顾问通知邮件里的开通命令
   public-base-url: ${VIP_PUBLIC_BASE_URL:http://localhost:8080}
+  # 顾问收件邮箱（VIP 开通申请通知邮件的收件人），支持逗号分隔的多个收件人
+  advisor-email: ${VIP_ADVISOR_EMAIL:xjl20041115@126.com}
+
+# 积分与情侣任务
+points:
+  task:
+    # 业务时区：任务周期（日/周/月）的「零点」以此为准，避免各接口口径不一致
+    business-zone: ${BUSINESS_ZONE:Asia/Shanghai}
+    # 日任务行保留天数，超出部分每天凌晨清理（周/月任务行不清理）
+    retention-days: ${TASK_RETENTION_DAYS:5}
+    # 清理任务执行时间
+    cleanup-cron: ${TASK_CLEANUP_CRON:0 0 3 * * ?}
+
+# 配额配置：导出与备份（每月）+ AI 推荐（每周），叠加 VIP 加成
+quota:
+  export:
+    base-monthly: ${QUOTA_EXPORT_BASE:3}
+  ai-recommend:
+    base-weekly: ${QUOTA_AI_BASE:3}
+  vip-bonus:
+    week:  ${QUOTA_VIP_WEEK:2}
+    month: ${QUOTA_VIP_MONTH:6}
+    quarter: ${QUOTA_VIP_QUARTER:9}
+    year:  ${QUOTA_VIP_YEAR:12}
 
 # AI 配置（DashScope / 通义千问）
 ai:
@@ -191,21 +215,26 @@ ai:
       max-tokens: 2000
       timeout-seconds: 60
 
-    # 改造图生成模型（wanx 图像编辑）：与 Stage1 共用同一个 DashScope 账户/Key
+    # 改造图生成模型（wan2.6-image）：与 Stage1 共用同一个 DashScope 账户/Key
     image-edit:
       enabled: true
       api-key: ${DASHSCOPE_MAKEOVER_API_KEY:${ai.dashscope.api-key}}
-      # 图像编辑模型（图像+prompt→图像）：wanx2.1-imageedit / wanx2.0-imageedit
-      model-name: ${DASHSCOPE_MAKEOVER_IMAGE_MODEL:wanx2.1-imageedit}
-      style: ${DASHSCOPE_MAKEOVER_IMAGE_STYLE:<repaint>}
-      # 输出尺寸 1024*1024
-      size: 1024*1024
-      # 超时秒数
+      # 图像编辑模型（图像+prompt→图像）：wan2.6-image（同步多模态生成接口）
+      model-name: ${DASHSCOPE_MAKEOVER_IMAGE_MODEL:wan2.6-image}
+      # 输出尺寸：1K / 2K（参考输入图比例），或显式宽*高（总像素 [768*768, 2048*2048]）
+      size: ${DASHSCOPE_MAKEOVER_IMAGE_SIZE:1K}
+      # 超时秒数（同步接口需等待整次推理完成）
       timeout-seconds: 90
 
 logging:
   level:
-    com.example.lovemap: DEBUG
+    com.example.lovemap: ${LOG_LEVEL:INFO}
+  file:
+    name: logs/lovemap.log
+  logback:
+    rollingpolicy:
+      max-file-size: 20MB
+      max-history: 30
 
 management:
   endpoints:

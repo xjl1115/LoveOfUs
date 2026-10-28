@@ -1,7 +1,6 @@
 package com.example.lovemap.model.dto;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
+import com.example.lovemap.common.validation.PhoneOrMasked;
 import lombok.Data;
 
 import java.time.LocalDate;
@@ -19,9 +18,10 @@ public class UserProfileUpdateDTO {
 
     /**
      * 手机号
+     * 允许为空、11 位合法手机号，或后端脱敏占位串（如 182****1872）。
+     * 脱敏串由 Service 层识别后跳过更新，避免误覆盖真实手机号。
      */
-    @NotBlank(message = "手机号不能为空")
-    @Pattern(regexp = "^1[3-9]\\d{9}$", message = "请输入正确的手机号")
+    @PhoneOrMasked
     private String phone;
 
     /**

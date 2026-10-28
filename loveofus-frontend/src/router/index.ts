@@ -38,6 +38,40 @@ const routes = [
     component: () => import('@/views/AlbumDetail.vue'),
     meta: { requiresAuth: true }
   },
+  // ============ 回忆展廊 ============
+  {
+    path: '/memory-gallery',
+    name: 'MemoryGallery',
+    component: () => import('@/views/MemoryGallery.vue'),
+    meta: { requiresAuth: true, title: '回忆展廊' }
+  },
+
+  // ============ 积分商城 + 情侣任务 ============
+  {
+    path: '/points-shop',
+    name: 'PointsShop',
+    component: () => import('@/views/PointsShop.vue'),
+    meta: { requiresAuth: true, title: '积分商城' }
+  },
+  {
+    path: '/points-shop/order',
+    name: 'PointOrder',
+    component: () => import('@/views/PointOrder.vue'),
+    meta: { requiresAuth: true, title: '确认订单' }
+  },
+  {
+    path: '/addresses',
+    name: 'AddressList',
+    component: () => import('@/views/AddressList.vue'),
+    meta: { requiresAuth: true, title: '我的地址' }
+  },
+  {
+    path: '/couple-task',
+    name: 'CoupleTask',
+    component: () => import('@/views/CoupleTask.vue'),
+    meta: { requiresAuth: true, title: '情侣任务' }
+  },
+
   {
     path: '/export',
     name: 'Export',
@@ -261,7 +295,7 @@ router.beforeEach(async (to) => {
     }
   }
 
-  // 已登录或访问公开页面，正常放行
+  // 其余路由正常放行
   return true
 })
 

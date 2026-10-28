@@ -3,6 +3,7 @@ package com.example.lovemap.service.serviceImpl;
 import com.example.lovemap.common.Result;
 import com.example.lovemap.common.ResultCode;
 import com.example.lovemap.common.constant.ExportConstant;
+import com.example.lovemap.common.constant.QuotaType;
 import com.example.lovemap.mapper.ExportMapper;
 import com.example.lovemap.mapper.PhotoAlbumMapper;
 import com.example.lovemap.mapper.PhotoMapper;
@@ -13,6 +14,7 @@ import com.example.lovemap.model.entity.Photo;
 import com.example.lovemap.model.entity.User;
 import com.example.lovemap.model.vo.ExportRecordVO;
 import com.example.lovemap.service.ExportService;
+import com.example.lovemap.service.QuotaService;
 import com.example.lovemap.service.SseService;
 import com.example.lovemap.service.export.PdfExportService;
 import com.example.lovemap.service.export.ZipExportService;
@@ -67,6 +69,7 @@ public class ExportServiceImpl implements ExportService {
     private final ZipExportService zipExportService;
     private final PdfExportService pdfExportService;
     private final SseService sseService;
+    private final QuotaService quotaService;
 
     @Value("${export.storage-path}")
     private String exportStoragePath;
@@ -108,6 +111,9 @@ public class ExportServiceImpl implements ExportService {
             log.warn("[EXPORT] 用户不存在 userId={}", userId);
             return Result.notFound("用户不存在");
         }
+
+        // 1.5 配额消费：导出与备份（每月基础+VIP加成）
+        quotaService.consume(user, QuotaType.EXPORT);
 
         // 2. 校验格式
         String format = dto.getFormat();

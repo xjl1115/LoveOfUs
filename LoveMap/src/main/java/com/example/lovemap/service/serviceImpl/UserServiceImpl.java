@@ -150,7 +150,10 @@ public class UserServiceImpl implements UserService {
 
         // 3. 更新基本信息
         user.setNickname(dto.getNickname());
-        user.setPhone(dto.getPhone());
+        // phone 字段含 * 即视为前端传来的脱敏占位串（如 182****1872），跳过更新，避免误覆盖真实手机号
+        if (StringUtils.hasText(dto.getPhone()) && !dto.getPhone().contains("*")) {
+            user.setPhone(dto.getPhone());
+        }
         user.setEmail(dto.getEmail());
         user.setGender(dto.getGender());
 

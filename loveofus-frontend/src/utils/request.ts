@@ -1,5 +1,5 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosError } from 'axios'
-import { showToast } from 'vant'
+import { showToast, showDialog } from 'vant'
 import { useUserStore } from '@/stores/user'
 
 const axiosInstance: AxiosInstance = axios.create({
@@ -90,13 +90,37 @@ axiosInstance.interceptors.request.use(
 
 // ==================== 响应拦截器 ====================
 
+/** 业务错误：把后端完整响应（code/message/data）抛给调用方，便于分支处理 */
+export interface BusinessError extends Error {
+  code: number
+  data: unknown
+}
+
 axiosInstance.interceptors.response.use(
   (response) => {
     const res = response.data
     if (res && typeof res === 'object' && 'code' in res) {
       if (res.code !== 200) {
-        showToast(res.message || '请求失败')
-        return Promise.reject(new Error(res.message))
+        // 配额耗尽（403）走 dialog，引导用户升级或购买；其他用 toast
+        if (res.code === 403 && typeof res.message === 'string' && res.message.includes('额度')) {
+          showDialog({
+            title: '本周期额度已用完',
+            message: res.message,
+            confirmButtonText: '升级 VIP',
+            cancelButtonText: '我知道了',
+            showCancelButton: true
+          }).then(() => {
+            window.location.href = '/vip'
+          }).catch(() => {
+            // 用户取消，不处理
+          })
+        } else {
+          showToast(res.message || '请求失败')
+        }
+        const err = new Error(res.message || '请求失败') as BusinessError
+        err.code = res.code
+        err.data = res.data
+        return Promise.reject(err)
       }
       return res.data
     }

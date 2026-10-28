@@ -8,7 +8,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -66,7 +65,7 @@ public class SecurityConfig {
                 // Swagger 文档
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 // VIP 顾问开通接口：无 JWT，由 VipController 校验 X-Vip-Admin-Token
-                .requestMatchers("/vip/admin/**").permitAll()
+                .requestMatchers("/vip/admin/**", "/admin/points/**").permitAll()
                 // 本地文件存储（仅当 file.storage=local 时真正暴露访问；OSS 模式下此路径下没有文件）
                 .requestMatchers("/uploads/**").permitAll()
                 // 其他请求需要认证
@@ -105,8 +104,7 @@ public class SecurityConfig {
                 return;
             }
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            response.setCharacterEncoding("UTF-8");
+            response.setContentType("application/json;charset=UTF-8");
             Result<Void> result = Result.error(ResultCode.UNAUTHORIZED, "请先登录");
             response.getWriter().write(new ObjectMapper().writeValueAsString(result));
         };
@@ -124,8 +122,7 @@ public class SecurityConfig {
                 return;
             }
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            response.setCharacterEncoding("UTF-8");
+            response.setContentType("application/json;charset=UTF-8");
             Result<Void> result = Result.error(ResultCode.FORBIDDEN, "无权限访问该资源");
             response.getWriter().write(new ObjectMapper().writeValueAsString(result));
         };

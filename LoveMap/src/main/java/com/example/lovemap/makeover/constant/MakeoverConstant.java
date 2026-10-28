@@ -84,19 +84,6 @@ public final class MakeoverConstant {
     public static final String IMAGE_PROVIDER_DASHSCOPE_WANX = "dashscope-wanx";
 
     /**
-     * DashScope wanx2.1-imageedit 的 function 字段（必填）。
-     * 官方支持的合法值：
-     *   - description_edit          ：按 prompt 全图指令编辑（妆造改造首选，简单任务）
-     *   - description_edit_with_mask：按 prompt + mask 局部重绘（需 mask_image_url）
-     *   - stylization_all           ：全局风格化（style 字段控制目标风格）
-     *   - stylization_local         ：局部风格化
-     *   - remove_watermark / expand / super_resolution / colorization / doodle / control_cartoon_feature
-     * <p>
-     * 旧值 description_edit_all 是 wanx2.0 时代的命名，wanx2.1 不再支持，会导致服务端返回空结果。
-     */
-    public static final String IMAGE_EDIT_FUNCTION = "description_edit";
-
-    /**
      * SSE 事件名
      */
     public static final String SSE_EVENT_STAGE = "stage";

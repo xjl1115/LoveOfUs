@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.lovemap.mapper.PointExchangeMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.lovemap.model.entity.PointExchange">
+        <id column="id" property="id"/>
+        <result column="order_no" property="orderNo"/>
+        <result column="user_id" property="userId"/>
+        <result column="product_id" property="productId"/>
+        <result column="product_name" property="productName"/>
+        <result column="points_cost" property="pointsCost"/>
+        <result column="quantity" property="quantity"/>
+        <result column="total_points" property="totalPoints"/>
+        <result column="price_amount" property="priceAmount"/>
+        <result column="receiver_name" property="receiverName"/>
+        <result column="receiver_phone" property="receiverPhone"/>
+        <result column="shipping_address" property="shippingAddress"/>
+        <result column="status" property="status"/>
+        <result column="confirmed_at" property="confirmedAt"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <sql id="BaseColumns">
+        id, order_no, user_id, product_id, product_name, points_cost, quantity, total_points,
+        price_amount, receiver_name, receiver_phone, shipping_address, status, confirmed_at, created_at
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO point_exchange (order_no, user_id, product_id, product_name, points_cost,
+                                    quantity, total_points, price_amount, receiver_name,
+                                    receiver_phone, shipping_address, status, created_at)
+        VALUES (#{orderNo}, #{userId}, #{productId}, #{productName}, #{pointsCost},
+                #{quantity}, #{totalPoints}, #{priceAmount}, #{receiverName},
+                #{receiverPhone}, #{shippingAddress}, #{status}, NOW())
+    </insert>
+
+    <select id="selectRecentByUser" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM point_exchange
+        WHERE user_id = #{userId}
+        ORDER BY created_at DESC, id DESC
+        LIMIT 50
+    </select>
+
+    <select id="selectByOrderNo" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM point_exchange
+        WHERE order_no = #{orderNo}
+        LIMIT 1
+    </select>
+
+    <select id="selectPending" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM point_exchange
+        WHERE status = 0
+        ORDER BY created_at ASC, id ASC
+    </select>
+
+    <!-- 条件更新：状态由调用方先行校验，避免把已处理订单重复改写 -->
+    <update id="updateStatus">
+        UPDATE point_exchange
+        SET status = #{status},
+            confirmed_at = #{confirmedAt}
+        WHERE id = #{id}
+    </update>
+
+</mapper>

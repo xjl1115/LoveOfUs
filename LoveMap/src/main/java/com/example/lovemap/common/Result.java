@@ -86,6 +86,13 @@ public class Result<T> {
     }
 
     /**
+     * 失败响应（自定义 code、message，并附带数据）
+     */
+    public static <T> Result<T> error(int code, String message, T data) {
+        return new Result<>(code, message, data);
+    }
+
+    /**
      * 参数错误
      */
     public static <T> Result<T> badRequest(String message) {

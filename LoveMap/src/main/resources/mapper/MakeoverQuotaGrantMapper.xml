@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.lovemap.makeover.mapper.MakeoverQuotaGrantMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.lovemap.model.entity.MakeoverQuotaGrant">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="order_no" property="orderNo"/>
+        <result column="grant_count" property="grantCount"/>
+        <result column="grant_period" property="grantPeriod"/>
+        <result column="activated_at" property="activatedAt"/>
+        <result column="expires_at" property="expiresAt"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <sql id="BaseColumns">
+        id, user_id, order_no, grant_count, grant_period, activated_at, expires_at, created_at
+    </sql>
+
+    <insert id="insert" parameterType="com.example.lovemap.model.entity.MakeoverQuotaGrant"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO makeover_quota_grant (user_id, order_no, grant_count, grant_period, activated_at, expires_at)
+        VALUES (#{userId}, #{orderNo}, #{grantCount}, #{grantPeriod}, #{activatedAt}, #{expiresAt})
+    </insert>
+
+    <select id="selectByOrderNo" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM makeover_quota_grant
+        WHERE order_no = #{orderNo}
+        LIMIT 1
+    </select>
+
+    <!-- 次卡不过期：累计全部入账，不按 grant_period 过滤 -->
+    <select id="sumAll" resultType="java.lang.Integer">
+        SELECT COALESCE(SUM(grant_count), 0)
+        FROM makeover_quota_grant
+        WHERE user_id = #{userId}
+    </select>
+
+</mapper>

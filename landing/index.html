@@ -1,0 +1,1641 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>LoveOfUs · 让每一份爱，都有迹可循</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="LoveOfUs，专属于情侣的回忆空间。足迹地图、时间线相册、纪念日倒计时、AI 情感聊天，让每一份爱，都有迹可循。">
+<meta name="theme-color" content="#FF6B6B">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --primary:#FF6B6B;
+  --primary-light:#FFB4B4;
+  --primary-soft:#FFE7E7;
+  --primary-dark:#E55555;
+  --bg:#FFF8F8;
+  --bg-card:#FFFFFF;
+  --text:#2D2D2D;
+  --text-light:#666666;
+  --text-muted:#999999;
+  --shadow:0 8px 30px rgba(255,107,107,.12);
+  --shadow-hover:0 16px 48px rgba(255,107,107,.22);
+  --radius:16px;
+  --radius-lg:24px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  font-family:'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif;
+  color:var(--text);
+  background:var(--bg);
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+.container{max-width:1200px;margin:0 auto;padding:0 24px}
+
+/* ===== Navbar ===== */
+.navbar{
+  position:fixed;top:0;left:0;right:0;
+  background:rgba(255,248,248,.85);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  z-index:100;
+  border-bottom:1px solid rgba(255,107,107,.08);
+  transition:box-shadow .3s;
+}
+.nav-inner{
+  max-width:1200px;margin:0 auto;
+  padding:14px 24px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.logo{font-size:22px;font-weight:800;color:var(--primary);display:flex;align-items:center;gap:8px;letter-spacing:-.5px}
+.logo .heart{animation:beat 1.4s ease-in-out infinite;display:inline-block}
+@keyframes beat{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}
+.nav-links{display:flex;gap:30px}
+.nav-links a{color:var(--text-light);text-decoration:none;font-size:14px;font-weight:500;transition:color .2s}
+.nav-links a:hover{color:var(--primary)}
+.nav-cta{
+  background:linear-gradient(135deg,var(--primary),#FF8585);
+  color:#fff;padding:9px 22px;border-radius:24px;
+  text-decoration:none;font-size:14px;font-weight:600;
+  transition:all .25s;
+  box-shadow:0 4px 12px rgba(255,107,107,.3);
+}
+.nav-cta:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(255,107,107,.45)}
+.nav-toggle{
+  display:none;width:40px;height:40px;padding:0;flex-shrink:0;
+  align-items:center;justify-content:center;
+  border:1px solid rgba(255,107,107,.2);border-radius:50%;
+  background:#fff;color:var(--primary);
+  font:700 22px/1 inherit;cursor:pointer;
+  transition:background .25s,color .25s,border-color .25s,transform .25s;
+}
+.nav-toggle:hover{transform:translateY(-2px);border-color:var(--primary)}
+.nav-toggle:focus-visible{outline:3px solid rgba(255,107,107,.25);outline-offset:2px}
+
+/* ===== Hero ===== */
+.hero{
+  padding:150px 24px 90px;
+  text-align:center;
+  background:
+    radial-gradient(circle at 20% 30%,rgba(255,200,200,.4),transparent 50%),
+    radial-gradient(circle at 80% 70%,rgba(255,180,200,.35),transparent 50%),
+    linear-gradient(180deg,#FFE7E7 0%,#FFF8F8 100%);
+  position:relative;
+  overflow:hidden;
+}
+.hero-deco{position:absolute;font-size:32px;opacity:.45;animation:float 6s ease-in-out infinite;pointer-events:none;user-select:none}
+.hero-deco.d1{top:18%;left:8%;animation-delay:0s}
+.hero-deco.d2{top:55%;left:14%;animation-delay:1.2s;font-size:24px}
+.hero-deco.d3{top:25%;right:10%;animation-delay:2.4s}
+.hero-deco.d4{top:65%;right:8%;animation-delay:3.6s;font-size:26px}
+.hero-deco.d5{bottom:15%;left:48%;animation-delay:4.5s;font-size:22px}
+@keyframes float{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-24px) rotate(8deg)}}
+.hero-badge{
+  display:inline-block;background:#fff;
+  padding:8px 18px;border-radius:24px;
+  font-size:13px;color:var(--primary);font-weight:600;
+  box-shadow:var(--shadow);margin-bottom:28px;
+}
+.hero h1{
+  font-size:60px;font-weight:900;letter-spacing:-1px;
+  background:linear-gradient(135deg,#FF6B6B 0%,#FF9F9F 50%,#FFB4B4 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  margin-bottom:24px;line-height:1.15;
+}
+.hero .sub{
+  font-size:19px;color:var(--text-light);
+  max-width:660px;margin:0 auto 40px;font-weight:400;
+}
+.hero-cta{display:inline-flex;gap:16px;flex-wrap:wrap;justify-content:center}
+.btn{
+  display:inline-block;padding:16px 36px;border-radius:32px;
+  font-size:16px;font-weight:700;text-decoration:none;
+  transition:all .25s;cursor:pointer;border:none;
+}
+.btn-primary{
+  background:linear-gradient(135deg,#FF6B6B 0%,#FF8585 100%);
+  color:#fff;box-shadow:0 8px 24px rgba(255,107,107,.4);
+}
+.btn-primary:hover{transform:translateY(-3px);box-shadow:0 12px 32px rgba(255,107,107,.55)}
+.btn-outline{
+  background:#fff;color:var(--primary);
+  border:2px solid var(--primary);
+}
+.btn-outline:hover{background:var(--primary);color:#fff;transform:translateY(-2px)}
+
+/* ===== Stats ===== */
+.stats{padding:60px 24px;background:#fff}
+.stats-grid{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:24px;
+  max-width:1100px;margin:0 auto;
+}
+.stat-card{text-align:center;padding:20px;position:relative}
+.stat-card:not(:last-child)::after{
+  content:'';position:absolute;right:-12px;top:50%;transform:translateY(-50%);
+  width:1px;height:50px;background:linear-gradient(180deg,transparent,var(--primary-light),transparent);
+}
+.stat-num{
+  font-size:46px;font-weight:900;
+  background:linear-gradient(135deg,#FF6B6B,#FFB4B4);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  line-height:1.1;letter-spacing:-1px;
+}
+.stat-label{color:var(--text-light);font-size:14px;margin-top:8px;font-weight:500}
+
+/* ===== Section ===== */
+.section{padding:110px 24px}
+.section-title{text-align:center;margin-bottom:64px}
+.section-title .tag{
+  display:inline-block;padding:5px 14px;border-radius:20px;
+  background:var(--primary-soft);color:var(--primary);
+  font-size:13px;font-weight:600;margin-bottom:14px;
+}
+.section-title h2{
+  font-size:42px;color:var(--text);margin-bottom:16px;
+  font-weight:800;letter-spacing:-.5px;
+}
+.section-title p{color:var(--text-light);font-size:17px;max-width:620px;margin:0 auto}
+
+/* ===== Features ===== */
+.features{background:linear-gradient(180deg,#FFF8F8 0%,#FFE7E7 100%)}
+.features-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:28px;
+  max-width:1180px;margin:0 auto;
+}
+.feature-card{
+  background:#fff;border-radius:var(--radius-lg);
+  padding:36px 30px;box-shadow:var(--shadow);
+  transition:all .35s cubic-bezier(.4,0,.2,1);
+  border:1px solid rgba(255,107,107,.06);
+  position:relative;overflow:hidden;
+}
+.feature-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:4px;
+  background:linear-gradient(90deg,var(--primary),var(--primary-light));
+  transform:scaleX(0);transform-origin:left;transition:transform .35s;
+}
+.feature-card:hover{transform:translateY(-8px);box-shadow:var(--shadow-hover)}
+.feature-card:hover::before{transform:scaleX(1)}
+.feature-icon{
+  font-size:46px;margin-bottom:18px;display:block;
+  width:72px;height:72px;line-height:72px;text-align:center;
+  background:linear-gradient(135deg,#FFF5F5,#FFE7E7);
+  border-radius:20px;
+}
+.feature-card h3{font-size:20px;margin-bottom:10px;color:var(--text);font-weight:700}
+.feature-card p{color:var(--text-light);font-size:14.5px;line-height:1.75}
+
+/* ===== Scenarios ===== */
+.scenarios{background:#fff}
+.scenarios-grid{
+  display:grid;grid-template-columns:repeat(2,1fr);gap:28px;
+  max-width:1000px;margin:0 auto;
+}
+.scenario-card{
+  background:linear-gradient(135deg,#FFF8F8 0%,#FFE7E7 100%);
+  border-radius:var(--radius-lg);padding:36px;
+  display:flex;align-items:center;gap:24px;
+  transition:transform .3s,box-shadow .3s;
+}
+.scenario-card:hover{transform:translateY(-4px);box-shadow:var(--shadow)}
+.scenario-emoji{
+  font-size:60px;flex-shrink:0;width:96px;height:96px;
+  display:flex;align-items:center;justify-content:center;
+  background:#fff;border-radius:50%;
+  box-shadow:0 6px 18px rgba(255,107,107,.15);
+}
+.scenario-card h3{font-size:20px;margin-bottom:6px;font-weight:700}
+.scenario-card p{color:var(--text-light);font-size:14.5px}
+
+/* ===== Testimonials ===== */
+.testimonials{background:linear-gradient(180deg,#FFE7E7 0%,#FFF8F8 100%)}
+.testimonials-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:28px;
+  max-width:1180px;margin:0 auto;
+}
+.testimonial{
+  background:#fff;border-radius:var(--radius-lg);
+  padding:32px 30px;box-shadow:var(--shadow);
+  position:relative;
+}
+.testimonial::before{
+  content:'"';position:absolute;top:-10px;left:24px;
+  font-size:80px;color:var(--primary-light);
+  font-family:Georgia,serif;line-height:1;font-weight:700;
+}
+.testimonial-text{
+  font-size:15px;color:var(--text);
+  line-height:1.85;margin:20px 0 28px;position:relative;z-index:1;
+}
+.testimonial-author{display:flex;align-items:center;gap:14px}
+.avatar{
+  width:48px;height:48px;border-radius:50%;
+  background:linear-gradient(135deg,#FF6B6B,#FFB4B4);
+  display:flex;align-items:center;justify-content:center;
+  color:#fff;font-weight:700;font-size:20px;
+  box-shadow:0 4px 10px rgba(255,107,107,.25);
+}
+.author-name{font-weight:700;font-size:15px}
+.author-tag{font-size:12.5px;color:var(--text-muted);margin-top:2px}
+
+/* ===== Pricing ===== */
+.vip{
+  position:relative;overflow:hidden;
+  background:
+    radial-gradient(circle at 8% 18%,rgba(255,107,107,.13),transparent 30%),
+    radial-gradient(circle at 92% 76%,rgba(255,180,180,.18),transparent 28%),
+    linear-gradient(180deg,#fff 0%,#FFF9F9 52%,#FFF3F3 100%);
+}
+.vip::before,.vip::after{
+  content:"";position:absolute;border-radius:50%;pointer-events:none;
+  filter:blur(2px);opacity:.55;
+}
+.vip::before{width:180px;height:180px;top:90px;left:-78px;background:radial-gradient(circle,#FFE0E0 0%,rgba(255,224,224,0) 70%)}
+.vip::after{width:240px;height:240px;right:-110px;bottom:110px;background:radial-gradient(circle,#FFE7E7 0%,rgba(255,231,231,0) 70%)}
+.pricing-shell{max-width:1180px;margin:0 auto;position:relative;z-index:1}
+.vip .section-title{margin-bottom:34px}
+.pricing-tabs{
+  width:max-content;margin:0 auto 32px;padding:6px;
+  display:flex;align-items:center;gap:4px;
+  background:rgba(255,255,255,.82);border:1px solid rgba(255,107,107,.14);
+  border-radius:18px;box-shadow:0 10px 30px rgba(255,107,107,.09);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+}
+.pricing-tab{
+  appearance:none;border:0;background:transparent;color:var(--text-light);
+  padding:11px 20px;border-radius:13px;font:600 14px/1 inherit;cursor:pointer;
+  display:flex;align-items:center;gap:8px;transition:color .25s,background .25s,transform .25s,box-shadow .25s;
+}
+.pricing-tab:hover{color:var(--primary)}
+.pricing-tab:focus-visible{outline:3px solid rgba(255,107,107,.25);outline-offset:2px}
+.pricing-tab.is-active{
+  color:#fff;background:linear-gradient(135deg,#FF6B6B,#FF8D7D);
+  box-shadow:0 7px 18px rgba(255,107,107,.28);transform:translateY(-1px);
+}
+.pricing-tab-count{
+  min-width:22px;height:22px;padding:0 6px;border-radius:11px;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:rgba(255,107,107,.12);color:var(--primary);font-size:11px;font-weight:800;
+}
+.pricing-tab.is-active .pricing-tab-count{background:rgba(255,255,255,.2);color:#fff}
+.pricing-panel{display:none}
+.pricing-panel.is-active{display:block;animation:pricingFade .42s cubic-bezier(.2,.8,.4,1)}
+@keyframes pricingFade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.pricing-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.plan-card{
+  --mx:50%;--my:0%;
+  appearance:none;width:100%;min-height:278px;position:relative;overflow:hidden;
+  display:flex;flex-direction:column;align-items:flex-start;text-align:left;
+  padding:24px;border:1.5px solid #F0E8E8;border-radius:22px;
+  background:#fff;color:var(--text);font-family:inherit;cursor:pointer;
+  box-shadow:0 10px 28px rgba(76,45,45,.055);
+  transition:transform .32s cubic-bezier(.2,.8,.2,1),box-shadow .32s,border-color .32s,background .32s;
+}
+.plan-card::before{
+  content:"";position:absolute;inset:0;pointer-events:none;opacity:0;
+  background:radial-gradient(360px circle at var(--mx) var(--my),rgba(255,107,107,.12),transparent 48%);
+  transition:opacity .3s;
+}
+.plan-card:hover{transform:translateY(-7px);border-color:rgba(255,107,107,.34);box-shadow:0 18px 42px rgba(255,107,107,.15)}
+.plan-card:hover::before{opacity:1}
+.plan-card:focus-visible{outline:3px solid rgba(255,107,107,.28);outline-offset:3px}
+.plan-card.is-selected{
+  border-color:var(--primary);transform:translateY(-5px);
+  box-shadow:0 0 0 4px rgba(255,107,107,.1),0 20px 44px rgba(255,107,107,.18);
+}
+.plan-card.is-selected::before{opacity:1}
+.plan-card > *{position:relative;z-index:1}
+.plan-card-top{width:100%;display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:22px}
+.plan-symbol{
+  width:46px;height:46px;border-radius:15px;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,#FFF0F0,#FFE2E2);color:var(--primary);
+  font-size:12px;font-weight:900;letter-spacing:.4px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.9);
+}
+.plan-check{
+  width:25px;height:25px;border-radius:50%;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:var(--primary);color:#fff;font-size:13px;font-weight:900;
+  opacity:0;transform:scale(.65) rotate(-18deg);transition:opacity .25s,transform .32s cubic-bezier(.34,1.56,.64,1);
+}
+.plan-card.is-selected .plan-check{opacity:1;transform:scale(1) rotate(0)}
+.plan-name{display:block;font-size:20px;font-weight:800;line-height:1.25;margin-bottom:3px}
+.plan-desc{display:block;color:var(--text-muted);font-size:13px;line-height:1.55;min-height:20px}
+.price-amount{
+  display:flex;align-items:baseline;gap:2px;margin:18px 0 5px;
+  color:var(--text);font-size:42px;font-weight:900;line-height:1;letter-spacing:-1.5px;
+}
+.price-amount small{font-size:14px;font-weight:600;letter-spacing:0;opacity:.55}
+.plan-daily{display:block;color:var(--primary);font-size:13px;font-weight:700}
+.plan-rule{display:block;width:100%;height:1px;background:#F2EAEA;margin:19px 0 14px}
+.plan-tag{
+  display:inline-flex;align-items:center;gap:6px;margin-top:auto;
+  color:var(--text-light);font-size:12.5px;font-weight:600;
+}
+.plan-tag::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--primary-light)}
+.price-badge{
+  position:absolute;top:18px;right:18px;z-index:2;
+  padding:6px 11px;border-radius:999px;
+  background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.36);
+  color:#fff;font-size:11px;font-weight:800;letter-spacing:.4px;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+}
+.plan-card.is-recommended{
+  border-color:transparent;color:#fff;
+  background:linear-gradient(145deg,#FF6873 0%,#FF806F 58%,#FF9A7A 100%);
+  box-shadow:0 18px 44px rgba(255,96,91,.28);
+}
+.plan-card.is-recommended .plan-card-top{margin-top:4px}
+.plan-card.is-recommended .plan-symbol{background:rgba(255,255,255,.18);color:#fff;box-shadow:none;border:1px solid rgba(255,255,255,.24)}
+.plan-card.is-recommended .plan-desc{color:rgba(255,255,255,.78)}
+.plan-card.is-recommended .price-amount{color:#fff}
+.plan-card.is-recommended .price-amount small{opacity:.78}
+.plan-card.is-recommended .plan-daily{color:#fff}
+.plan-card.is-recommended .plan-rule{background:rgba(255,255,255,.2)}
+.plan-card.is-recommended .plan-tag{color:rgba(255,255,255,.86)}
+.plan-card.is-recommended .plan-tag::before{background:#fff}
+.plan-card.is-recommended .plan-check{background:#fff;color:var(--primary)}
+.plan-card.is-recommended:hover{box-shadow:0 22px 52px rgba(255,96,91,.34)}
+.plan-card.is-recommended.is-selected{box-shadow:0 0 0 4px rgba(255,107,107,.15),0 24px 54px rgba(255,96,91,.36)}
+.credit-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.credit-card{
+  appearance:none;width:100%;min-height:250px;position:relative;overflow:hidden;
+  display:flex;flex-direction:column;align-items:flex-start;text-align:left;
+  padding:28px;border:1.5px solid #F0E8E8;border-radius:22px;background:#fff;
+  color:var(--text);font-family:inherit;cursor:pointer;
+  box-shadow:0 10px 28px rgba(76,45,45,.055);
+  transition:transform .32s cubic-bezier(.2,.8,.2,1),box-shadow .32s,border-color .32s;
+}
+.credit-card:hover{transform:translateY(-7px);border-color:rgba(255,107,107,.34);box-shadow:0 18px 42px rgba(255,107,107,.15)}
+.credit-card:focus-visible{outline:3px solid rgba(255,107,107,.28);outline-offset:3px}
+.credit-card.is-selected{border-color:var(--primary);box-shadow:0 0 0 4px rgba(255,107,107,.1),0 20px 44px rgba(255,107,107,.18)}
+.credit-icon{
+  width:58px;height:58px;border-radius:18px;margin-bottom:22px;
+  display:inline-flex;align-items:center;justify-content:center;font-size:28px;
+  background:linear-gradient(135deg,#FFF0F0,#FFE2E2);
+}
+.credit-name{display:block;font-size:19px;font-weight:800;margin-bottom:5px}
+.credit-desc{display:block;color:var(--text-muted);font-size:13.5px;line-height:1.65;min-height:44px}
+.credit-price{display:block;color:var(--primary);font-size:34px;font-weight:900;line-height:1;margin-top:24px;letter-spacing:-1px}
+.credit-price small{color:var(--text-muted);font-size:14px;font-weight:600;margin-left:2px}
+.credit-buy{display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:20px;color:var(--text-light);font-size:12.5px;font-weight:700}
+.credit-card.is-selected .credit-buy{color:var(--primary)}
+.credit-buy::after{content:"→";transition:transform .25s}
+.credit-card:hover .credit-buy::after{transform:translateX(4px)}
+.pricing-summary{
+  position:relative;overflow:hidden;margin-top:26px;padding:24px 26px;
+  display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:26px;
+  color:#fff;border-radius:22px;
+  background:
+    radial-gradient(circle at 88% 20%,rgba(255,141,125,.35),transparent 28%),
+    linear-gradient(135deg,#2D2D2D 0%,#3A3030 100%);
+  box-shadow:0 18px 44px rgba(45,45,45,.18);
+}
+.pricing-summary::before{
+  content:"";position:absolute;width:170px;height:170px;right:-70px;bottom:-105px;
+  border-radius:50%;border:28px solid rgba(255,255,255,.05);
+}
+.summary-copy{position:relative;z-index:1;min-width:0}
+.summary-label{display:flex;align-items:center;gap:8px;color:rgba(255,255,255,.62);font-size:12px;font-weight:700;letter-spacing:.8px;text-transform:uppercase}
+.summary-dot{width:7px;height:7px;border-radius:50%;background:#FF7C76;box-shadow:0 0 0 5px rgba(255,124,118,.14)}
+.summary-main{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:6px 0 3px}
+.summary-main strong{font-size:23px;font-weight:800}
+.summary-price{display:flex;align-items:baseline;gap:2px;color:#FF9A91}
+.summary-price b{font-size:23px}
+.summary-price small{font-size:13px;font-weight:600;opacity:.75}
+.summary-copy p{color:rgba(255,255,255,.68);font-size:13.5px;line-height:1.6;max-width:720px}
+.pricing-cta{
+  position:relative;z-index:1;flex-shrink:0;min-width:188px;
+  display:inline-flex;align-items:center;justify-content:center;gap:9px;
+  padding:16px 24px;border-radius:15px;text-decoration:none;
+  color:#fff;font-size:15px;font-weight:800;letter-spacing:.3px;
+  background:linear-gradient(135deg,#FF6B6B,#FF8778);
+  box-shadow:0 10px 24px rgba(255,107,107,.34),inset 0 1px 0 rgba(255,255,255,.3);
+  transition:transform .25s,box-shadow .25s,filter .25s;
+}
+.pricing-cta:hover{transform:translateY(-3px);filter:brightness(1.04);box-shadow:0 14px 30px rgba(255,107,107,.42),inset 0 1px 0 rgba(255,255,255,.3)}
+.pricing-cta:active{transform:translateY(0);box-shadow:0 6px 16px rgba(255,107,107,.3)}
+.pricing-cta:focus-visible{outline:3px solid rgba(255,255,255,.45);outline-offset:3px}
+.pricing-cta span:last-child{transition:transform .25s}
+.pricing-cta:hover span:last-child{transform:translateX(4px)}
+.pricing-disclaimer{
+  max-width:780px;margin:22px auto 0;text-align:center;
+  padding:14px 22px;display:flex;align-items:center;justify-content:center;gap:9px;
+  background:rgba(255,255,255,.66);border:1px dashed rgba(255,107,107,.28);
+  border-radius:14px;color:var(--text-muted);font-size:13px;line-height:1.7;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+}
+.pricing-disclaimer .disclaimer-icon{font-size:16px;flex-shrink:0;display:inline-block}
+.pricing-disclaimer strong{color:var(--primary);font-weight:800}
+@media (max-width:900px){
+  .pricing-grid,.credit-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .plan-card{min-height:270px}
+}
+@media (max-width:640px){
+  .pricing-tabs{width:100%}
+  .pricing-tab{flex:1;justify-content:center;padding:11px 12px}
+  .pricing-grid,.credit-grid{grid-template-columns:1fr}
+  .plan-card,.credit-card{min-height:auto}
+  .pricing-summary{grid-template-columns:1fr;padding:22px}
+  .pricing-cta{width:100%}
+  .pricing-disclaimer{align-items:flex-start;text-align:left}
+}
+/* ===== Early Bird ===== */
+.earlybird{background:linear-gradient(135deg,#FF6B6B 0%,#FF8585 50%,#FF9F9F 100%);color:#fff;text-align:center;position:relative;overflow:hidden}
+.earlybird::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 20% 50%,rgba(255,255,255,.18),transparent 60%);pointer-events:none}
+.earlybird .section-title h2{color:#fff}
+.earlybird .section-title p{color:rgba(255,255,255,.92)}
+.earlybird .tag{background:rgba(255,255,255,.25);color:#fff;border:1px solid rgba(255,255,255,.3)}
+.earlybird-content{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;max-width:1000px;margin:0 auto 50px;position:relative;z-index:1}
+.earlybird-card{background:#fff;border-radius:var(--radius-lg);padding:36px 28px;color:var(--text);transition:transform .3s,box-shadow .3s;box-shadow:0 8px 24px rgba(0,0,0,.08)}
+.earlybird-card:hover{transform:translateY(-8px);box-shadow:0 16px 40px rgba(0,0,0,.15)}
+.eb-icon{font-size:48px;margin-bottom:14px;display:block}
+.earlybird-card h3{font-size:19px;margin-bottom:10px;font-weight:700}
+.earlybird-card p{font-size:14px;color:var(--text-light);line-height:1.7;margin-bottom:18px}
+.eb-value{font-size:24px;font-weight:900;background:linear-gradient(135deg,#FF6B6B,#FF9F9F);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:-.5px}
+.earlybird-cta{position:relative;z-index:1}
+.earlybird-cta p{font-size:16px;margin-bottom:22px;opacity:.95;font-weight:500}
+.earlybird .btn{background:#fff;color:var(--primary);box-shadow:0 10px 30px rgba(0,0,0,.15)}
+.earlybird .btn:hover{background:#fff;color:var(--primary-dark);transform:translateY(-3px);box-shadow:0 14px 36px rgba(0,0,0,.2)}
+
+/* ===== Modal ===== */
+.modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.modal-mask.show{display:flex;animation:fadeIn .25s ease-out}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.modal{background:#fff;border-radius:24px;width:100%;max-width:560px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.3);animation:modalIn .35s cubic-bezier(.2,.8,.4,1)}
+@keyframes modalIn{from{opacity:0;transform:scale(.92) translateY(20px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.modal-header{display:flex;justify-content:space-between;align-items:center;padding:24px 28px 18px;border-bottom:1px solid #f0f0f0;flex-shrink:0}
+.modal-title{font-size:20px;font-weight:700;color:var(--text)}
+.modal-close{width:36px;height:36px;border-radius:50%;background:#f5f5f5;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:24px;color:#999;transition:all .25s;line-height:1;font-family:inherit}
+.modal-close:hover{background:#ffe7e7;color:var(--primary);transform:rotate(90deg)}
+.modal-body{padding:24px 28px;overflow-y:auto;flex:1;color:var(--text-light);line-height:1.85;font-size:14.5px}
+.modal-body::-webkit-scrollbar{width:6px}
+.modal-body::-webkit-scrollbar-thumb{background:#ddd;border-radius:3px}
+.modal-body::-webkit-scrollbar-thumb:hover{background:var(--primary-light)}
+.modal-body h3{font-size:16px;color:var(--text);margin:20px 0 10px;font-weight:700}
+.modal-body h3:first-child{margin-top:0}
+.modal-body h4{font-size:15px;color:var(--text);margin:14px 0 6px;font-weight:700}
+.modal-body p{margin-bottom:10px}
+.modal-body ul{padding-left:22px;margin-bottom:12px}
+.modal-body li{margin-bottom:6px}
+.modal-body strong{color:var(--primary)}
+.contact-content{text-align:center}
+.contact-avatar{font-size:64px;margin-bottom:12px;display:block;line-height:1}
+.contact-company{font-size:18px;font-weight:700;color:var(--text);margin-bottom:6px}
+.contact-tip{font-size:14px;margin-bottom:20px;color:var(--text-muted)}
+.contact-email-box{background:linear-gradient(135deg,#FFF8F8 0%,#FFE7E7 100%);padding:22px 20px;border-radius:16px;margin:18px 0;border:1px solid rgba(255,107,107,.15)}
+.contact-email-label{font-size:13px;color:var(--text-muted);margin-bottom:10px;font-weight:500}
+.contact-email{font-size:18px;color:var(--primary);font-weight:800;word-break:break-all;letter-spacing:.3px}
+.contact-footer{margin-top:18px;font-size:13px;color:var(--text-muted);line-height:1.7}
+.modal-footer{padding:16px 28px 24px;border-top:1px solid #f0f0f0;display:flex;gap:12px;justify-content:flex-end;flex-shrink:0}
+.modal-footer .btn{padding:12px 28px;font-size:14px}
+.btn-ghost{background:#f5f5f5;color:var(--text)}
+.btn-ghost:hover{background:#e8e8e8}
+.copy-success{background:linear-gradient(135deg,#22C55E,#16A34A)!important}
+
+/* ===== Responsive ===== */
+@media (max-width:900px){
+  .pain-grid,.earlybird-content{grid-template-columns:repeat(2,1fr)}
+  .scenarios-grid{grid-template-columns:1fr}
+}
+@media (max-width:640px){
+  .pain-grid,.earlybird-content,.scenarios-grid{grid-template-columns:1fr}
+  .faq-q{padding:18px 22px;font-size:15px}
+  .faq-a,.faq-item.open .faq-a{padding-left:22px;padding-right:22px}
+  .final-cta h2{font-size:30px}
+  .earlybird-content{gap:18px}
+  .footer-links a{margin:0 8px;display:inline-block;margin-bottom:6px}
+}
+/* ===== Hearts Layer ===== */
+.hearts-layer{position:fixed;inset:0;pointer-events:none;z-index:9999;overflow:hidden}
+
+/* ===== Pain ===== */
+.pain{background:#fff}
+.pain-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;max-width:1180px;margin:0 auto}
+.pain-card{background:linear-gradient(135deg,#FFF8F8 0%,#FFE7E7 100%);border-radius:var(--radius-lg);padding:32px 26px;transition:all .3s;border:1px solid rgba(255,107,107,.06)}
+.pain-card:hover{transform:translateY(-6px);box-shadow:var(--shadow)}
+.pain-emoji{font-size:46px;margin-bottom:16px;display:block}
+.pain-card h3{font-size:17px;margin-bottom:10px;font-weight:700}
+.pain-card p{font-size:14px;color:var(--text-light);line-height:1.75}
+
+/* ===== VIP Section ===== */
+.vip{background:#fff}
+
+/* ===== FAQ ===== */
+.faq{background:linear-gradient(180deg,#FFF8F8 0%,#FFE7E7 100%)}
+.faq-list{max-width:820px;margin:0 auto}
+.faq-item{background:#fff;border-radius:var(--radius);margin-bottom:14px;overflow:hidden;box-shadow:var(--shadow);transition:box-shadow .3s}
+.faq-item:hover{box-shadow:var(--shadow-hover)}
+.faq-q{padding:22px 28px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-weight:600;font-size:16px;transition:color .2s;user-select:none}
+.faq-q:hover{color:var(--primary)}
+.faq-q::after{content:"\2B";color:var(--primary);font-size:24px;font-weight:400;transition:transform .3s;flex-shrink:0;margin-left:12px}
+.faq-item.open .faq-q::after{transform:rotate(45deg)}
+.faq-a{max-height:0;overflow:hidden;padding:0 28px;color:var(--text-light);line-height:1.85;font-size:14.5px;transition:max-height .35s,padding .35s}
+.faq-item.open .faq-a{max-height:600px;padding:0 28px 22px}
+.faq-a p{margin-bottom:10px}
+.faq-a ul{padding-left:22px;margin-bottom:10px}
+.faq-a li{margin-bottom:5px}
+
+/* ===== Final CTA ===== */
+.final-cta{padding:110px 24px;text-align:center;color:#fff;background:radial-gradient(circle at 30% 50%,rgba(255,255,255,.15),transparent 50%),linear-gradient(135deg,#FF6B6B 0%,#FF8585 50%,#FF9F9F 100%);position:relative;overflow:hidden}
+.final-cta::before,.final-cta::after{content:"\1F496";position:absolute;font-size:36px;opacity:.4;animation:float 7s ease-in-out infinite}
+.final-cta::before{top:18%;left:10%;animation-delay:1s}
+.final-cta::after{bottom:18%;right:12%;animation-delay:3.5s}
+.final-cta h2{font-size:44px;margin-bottom:18px;font-weight:900;letter-spacing:-.5px;position:relative;z-index:1}
+.final-cta p{font-size:17px;opacity:.92;margin-bottom:36px;max-width:580px;margin-left:auto;margin-right:auto;position:relative;z-index:1}
+.final-cta .btn{background:#fff;color:var(--primary);padding:18px 48px;position:relative;z-index:1;box-shadow:0 10px 30px rgba(0,0,0,.12)}
+.final-cta .btn:hover{transform:translateY(-3px);box-shadow:0 14px 36px rgba(0,0,0,.18)}
+.cta-buttons{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;position:relative;z-index:1}
+
+/* ===== Footer ===== */
+.footer{padding:40px 24px;background:#2D2D2D;color:rgba(255,255,255,.55);text-align:center;font-size:13.5px}
+.footer-links{margin-bottom:14px}
+.footer-links a{color:rgba(255,255,255,.55);text-decoration:none;margin:0 14px;transition:color .2s}
+.footer-links a:hover{color:#fff}
+.footer p{margin-top:8px}
+.heart-inline{color:var(--primary)}
+/* ===== Heart Particles ===== */
+.heart-particle{position:absolute;display:flex;align-items:center;justify-content:center;pointer-events:none;user-select:none;will-change:transform,opacity;filter:drop-shadow(0 2px 5px rgba(255,71,87,.45));animation:burstPulse 1100ms cubic-bezier(.18,.7,.4,1) forwards}
+.heart-svg{width:100%;height:100%}
+@keyframes burstPulse{0%{opacity:0;transform:translate(0,0) scale(.3) rotate(0deg)}18%{opacity:1;transform:translate(calc(var(--dx) *.18),calc(var(--dy) *.18)) scale(1.15) rotate(calc(var(--rot) *.18))}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.9) rotate(var(--rot))}}
+/* ===== Pricing 免责声明 ===== */
+.pricing-disclaimer{
+  max-width:760px;margin:36px auto 0;text-align:center;
+  padding:16px 24px;
+  background:linear-gradient(135deg,#FFF8F8 0%,#FFE7E7 100%);
+  border:1px dashed rgba(255,107,107,.35);
+  border-radius:14px;
+  color:var(--text-muted);
+  font-size:13.5px;line-height:1.7;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+}
+.pricing-disclaimer .disclaimer-icon{
+  font-size:18px;flex-shrink:0;
+  display:inline-block;
+  animation:disclaimer-pulse 2s ease-in-out infinite;
+}
+@keyframes disclaimer-pulse{
+  0%,100%{transform:scale(1)}
+  50%{transform:scale(1.15)}
+}
+.pricing-disclaimer strong{color:var(--primary);font-weight:700}
+
+/* ===== Responsive ===== */
+@media (max-width:900px){
+  .section{padding:88px 24px}
+  .hero{padding:132px 24px 76px}
+  .hero h1{font-size:52px}
+  .features-grid,.testimonials-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .pain-grid,.earlybird-content{grid-template-columns:repeat(2,1fr)}
+  .scenarios-grid{grid-template-columns:1fr}
+  .pricing-grid,.credit-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .plan-card{min-height:270px}
+  /* 修复：≤900 时 stats 改为 2 列，避免 768 等平板上 4 列换行 */
+  .stats-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 0}
+  .stat-card:not(:last-child)::after{display:none}
+  .stat-num{font-size:38px}
+}
+
+@media (max-width:820px){
+  .nav-inner{padding:12px 20px;gap:10px}
+  .logo{font-size:20px}
+  .nav-links{
+    position:absolute;top:100%;left:0;right:0;
+    display:none;flex-direction:column;gap:2px;
+    padding:8px 20px 18px;
+    background:rgba(255,248,248,.98);
+    border-bottom:1px solid rgba(255,107,107,.12);
+    box-shadow:0 14px 28px rgba(93,48,48,.1);
+  }
+  .navbar.menu-open .nav-links{display:flex}
+  .nav-links a{padding:12px 4px;border-bottom:1px solid rgba(255,107,107,.09);font-size:15px}
+  .nav-links a:last-child{border-bottom:0}
+  .nav-cta{margin-left:auto;padding:9px 16px}
+  .nav-toggle{display:flex}
+  .navbar.menu-open .nav-toggle{background:var(--primary);color:#fff;border-color:var(--primary)}
+}
+
+@media (max-width:640px){
+  html{scroll-padding-top:68px}
+  .section{padding:72px 20px}
+  .section-title{margin-bottom:44px}
+  .section-title h2{font-size:30px;line-height:1.3}
+  .section-title p{font-size:15px}
+  .hero{padding:112px 20px 64px}
+  .hero-deco{opacity:.28}
+  .hero h1{font-size:40px;letter-spacing:-.5px}
+  .hero .sub{font-size:15px;line-height:1.8;margin-bottom:30px}
+  .hero .sub br{display:none}
+  .hero-badge{font-size:12px;padding:7px 14px;margin-bottom:22px;line-height:1.5}
+  .hero-cta{display:grid;grid-template-columns:1fr;gap:12px;width:100%;max-width:360px;margin:0 auto}
+  .btn{width:100%;padding:14px 22px}
+  .stats{padding:42px 20px}
+  .stats-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 0}
+  .stat-card{padding:16px 8px}
+  .stat-card:not(:last-child)::after{display:none}
+  .stat-num{font-size:32px}
+  .stat-label{font-size:12.5px;line-height:1.5}
+  .features-grid,.scenarios-grid,.testimonials-grid,.pain-grid,.pricing-grid,.credit-grid,.earlybird-content{grid-template-columns:1fr}
+  .feature-card,.pain-card{padding:28px 24px}
+  .feature-icon{width:64px;height:64px;line-height:64px;font-size:38px;margin-bottom:16px}
+  .scenario-card{flex-direction:column;text-align:center;padding:28px 24px;gap:16px}
+  .scenario-emoji{width:80px;height:80px;font-size:50px}
+  .testimonial{padding:28px 24px}
+  .pricing-tabs{width:100%}
+  .pricing-tab{flex:1;justify-content:center;padding:11px 12px}
+  .plan-card,.credit-card{min-height:auto}
+  .pricing-summary{grid-template-columns:1fr;padding:22px;gap:18px}
+  .pricing-cta{width:100%}
+  .pricing-disclaimer{align-items:flex-start;text-align:left}
+  .earlybird-content{gap:18px}
+  .earlybird-card{padding:28px 24px}
+  .faq-q{padding:18px 20px;font-size:15px}
+  .faq-a,.faq-item.open .faq-a{padding-left:20px;padding-right:20px}
+  .final-cta{padding:72px 20px}
+  .final-cta h2{font-size:30px;line-height:1.3}
+  .final-cta p{font-size:15px;margin-bottom:28px}
+  .final-cta .btn{width:auto;min-width:min(100%,230px);padding:15px 30px}
+  .footer{padding:32px 20px}
+  .footer-links a{margin:0 8px 6px;display:inline-block}
+  .modal-mask{padding:12px}
+  .modal{max-height:calc(100dvh - 24px);border-radius:20px}
+  .modal-header{padding:20px 20px 14px}
+  .modal-title{font-size:18px}
+  .modal-close{width:40px;height:40px;flex-shrink:0}
+  .modal-body{padding:20px;font-size:14px}
+  .modal-footer{padding:14px 20px calc(18px + env(safe-area-inset-bottom))}
+  .contact-avatar{font-size:54px}
+  .contact-email{font-size:16px}
+}
+
+@media (max-width:380px){
+  .nav-inner{padding-left:16px;padding-right:16px;gap:6px}
+  .logo{font-size:18px;gap:5px}
+  .nav-cta{padding:8px 12px;font-size:13px}
+  .nav-links{padding-left:16px;padding-right:16px}
+  .hero h1{font-size:36px}
+  .stat-num{font-size:28px}
+}
+</style>
+</head>
+<body>
+<div class="hearts-layer" id="heartsLayer" aria-hidden="true"></div>
+
+<!-- ===== Navbar ===== -->
+<nav class="navbar" id="navbar">
+  <div class="nav-inner">
+    <div class="logo"><span class="heart">❤️</span> LoveOfUs</div>
+    <div class="nav-links" id="siteNav">
+      <a href="#features">核心功能</a>
+      <a href="#why-us">用户痛点</a>
+      <a href="#scenarios">使用场景</a>
+      <a href="#testimonials">用户评价</a>
+      <a href="#vip">会员权益</a>
+      <a href="#faq">常见问题</a>
+    </div>
+    <a href="#cta" class="nav-cta">立即开始</a>
+    <button type="button" class="nav-toggle" id="navToggle" aria-label="打开导航菜单" aria-controls="siteNav" aria-expanded="false">☰</button>
+  </div>
+</nav>
+
+<!-- ===== Hero ===== -->
+<section class="hero">
+  <span class="hero-deco d1">💕</span>
+  <span class="hero-deco d2">✨</span>
+  <span class="hero-deco d3">💖</span>
+  <span class="hero-deco d4">🌸</span>
+  <span class="hero-deco d5">💗</span>
+  <div class="hero-badge">💕 已有 10万+ 情侣正在记录他们的爱情故事</div>
+  <h1>让每一份爱<br>都有迹可循</h1>
+  <p class="sub">LoveOfUs 是专属于情侣的回忆空间。<br>用足迹地图、时间线相册、纪念日倒计时，<br>把两个人的故事写进时光里。</p>
+  <div class="hero-cta">
+    <button type="button" class="btn btn-primary" data-action="contact">免费开启我们的故事 →</button>
+    <a href="#features" class="btn btn-outline">了解更多</a>
+  </div>
+</section>
+
+<!-- ===== Stats ===== -->
+<section class="stats">
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-num">10万+</div>
+      <div class="stat-label">甜蜜情侣信赖之选</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num">500万+</div>
+      <div class="stat-label">珍贵照片温柔珍藏</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num">300+</div>
+      <div class="stat-label">城市足迹共同点亮</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num">365天</div>
+      <div class="stat-label">从不遗忘任何纪念日</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Features ===== -->
+<section class="section features" id="features">
+  <div class="section-title">
+    <span class="tag">CORE FEATURES</span>
+    <h2>9 大核心功能，记录每一份心动</h2>
+    <p>从相识到相伴，LoveOfUs 为情侣的每一个重要时刻，留下可触摸的回忆</p>
+  </div>
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon">🗺️</div>
+      <h3>中国足迹地图</h3>
+      <p>在地图上点亮你们一起走过的每一座城市、每一个省份。看爱情如何在祖国大地上一路蔓延，越走越远。</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📸</div>
+      <h3>时间线相册</h3>
+      <p>按月份自动整理甜蜜照片，瀑布流展示每一刻感动。EXIF 解析 + GPS 定位，让回忆井然有序。</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🎂</div>
+      <h3>纪念日倒计时</h3>
+      <p>相识、牵手、初吻、周年……所有重要日子提前提醒，再忙也不会忘记属于你们的特殊时刻。</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📁</div>
+      <h3>智能相册管理</h3>
+      <p>AI 自动识别场景、人物、情绪，智能聚类生成相册。手动整理 + 智能推荐，让照片井井有条。</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🤖</div>
+      <h3>AI 情感聊天</h3>
+      <p>专属情侣 AI 助手，倾听你们的甜蜜与烦恼。给恋爱建议、写情书、解决小矛盾，24h 在线陪伴。</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">💄</div>
+      <h3>AI 化妆建议</h3>
+      <p>上传一张照片，AI 立即分析五官、肤色、气质，给出专属的妆容和造型建议，让 TA 眼前一亮。</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📅</div>
+      <h3>智能约会计划</h3>
+      <p>不知道下次约会去哪？AI 根据你们的兴趣、预算、城市，推荐最合适的约会方案，让每次约会都惊喜满满。</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">💝</div>
+      <h3>心愿清单</h3>
+      <p>一起列出想做的事、想去的地方、想要的礼物。让爱有目标、有期待、有实现的那份甜蜜瞬间。</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">💯</div>
+      <h3>必做 100 件小事</h3>
+      <p>情侣专属任务清单，从"一起看日出"到"一起做顿饭"，逐项打卡，让爱情在小事中不断升温。</p>
+    </div>
+  </div>
+</section>
+
+
+<!-- ===== Pain Points ===== -->
+<section class="section pain" id="why-us">
+  <div class="section-title">
+    <span class="tag">WHY LOVE OF US</span>
+    <h2>每一对认真相爱的情侣<br>都值得被认真记录</h2>
+    <p>我们懂你的痛，因为 LoveOfUs 正是为解决这些痛而诞生</p>
+  </div>
+  <div class="pain-grid">
+    <div class="pain-card">
+      <div class="pain-emoji">📱</div>
+      <h3>照片四散，无从整理</h3>
+      <p>微信、QQ、相册、网盘……两个人的回忆碎片化地散落在各处，从未真正属于你们。</p>
+    </div>
+    <div class="pain-card">
+      <div class="pain-emoji">🙈</div>
+      <h3>公开平台，不敢晒恩爱</h3>
+      <p>朋友圈太公开、情侣空间太幼稚。甜蜜的瞬间，只想留给最亲近的人。</p>
+    </div>
+    <div class="pain-card">
+      <div class="pain-emoji">💔</div>
+      <h3>重要日子，总是遗忘</h3>
+      <p>相识纪念日、牵手纪念日、初吻纪念日……重要的日子那么多，脑子真的不够用。</p>
+    </div>
+    <div class="pain-card">
+      <div class="pain-emoji">🤖</div>
+      <h3>AI 助手，不能为爱赋能</h3>
+      <p>通用 AI 什么都懂，却不懂你和她之间的小默契。需要一个真正"懂爱情"的 AI。</p>
+    </div>
+  </div>
+</section>
+<!-- ===== Scenarios ===== -->
+<section class="section scenarios" id="scenarios">
+  <div class="section-title">
+    <span class="tag">FOR WHO</span>
+    <h2>总有一款适合你们</h2>
+    <p>不论你处在爱情的哪个阶段，LoveOfUs 都能成为你们最好的爱情记录者</p>
+  </div>
+  <div class="scenarios-grid">
+    <div class="scenario-card">
+      <div class="scenario-emoji">💑</div>
+      <div>
+        <h3>异地恋情侣</h3>
+        <p>距离从不是问题。视频、照片、纪念日，让异地也有温度，让等待也有意义。</p>
+      </div>
+    </div>
+    <div class="scenario-card">
+      <div class="scenario-emoji">💞</div>
+      <div>
+        <h3>热恋中的恋人</h3>
+        <p>把每一个心动的瞬间都拍下来、写下来。用 LoveOfUs 给爱情留一份最完整的存档。</p>
+      </div>
+    </div>
+    <div class="scenario-card">
+      <div class="scenario-emoji">💍</div>
+      <div>
+        <h3>新婚夫妇</h3>
+        <p>从婚纱照到婚后日常，把甜蜜延续。给未来的孩子留下一份最珍贵的家庭影像志。</p>
+      </div>
+    </div>
+    <div class="scenario-card">
+      <div class="scenario-emoji">✈️</div>
+      <div>
+        <h3>旅行爱好者</h3>
+        <p>走过的每一座城市都是故事。在地图上点亮足迹，把旅行变成一场浪漫的收集游戏。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Testimonials ===== -->
+<section class="section testimonials" id="testimonials">
+  <div class="section-title">
+    <span class="tag">REAL VOICES</span>
+    <h2>TA 们怎么说</h2>
+    <p>来自 10万+ 情侣的真实评价</p>
+  </div>
+  <div class="testimonials-grid">
+    <div class="testimonial">
+      <p class="testimonial-text">足迹地图太戳我了！和女朋友一起走过的省份一个个点亮，比任何礼物都有意义。异地两年，每次打开都能看到我们的爱情版图在扩大。</p>
+      <div class="testimonial-author">
+        <div class="avatar">L</div>
+        <div>
+          <div class="author-name">Leo & 小鱼</div>
+          <div class="author-tag">异地 2 年 · 已点亮 14 省</div>
+        </div>
+      </div>
+    </div>
+    <div class="testimonial">
+      <p class="testimonial-text">AI 化妆建议功能超神奇！约会前拍一张照片，AI 推荐的妆容让我每次都被夸，越来越有自信。姐妹们都问我怎么变美的，秘诀都在 LoveOfUs 里～</p>
+      <div class="testimonial-author">
+        <div class="avatar">Y</div>
+        <div>
+          <div class="author-name">Yuki & 阿泽</div>
+          <div class="author-tag">热恋中 · 周年纪念</div>
+        </div>
+      </div>
+    </div>
+    <div class="testimonial">
+      <p class="testimonial-text">必做 100 件小事清单让我们每周都有新惊喜。最喜欢的功能是心愿单，已经实现了 23 个愿望！现在我们又在规划下一个 100 件～</p>
+      <div class="testimonial-author">
+        <div class="avatar">M</div>
+        <div>
+          <div class="author-name">Mia & Eric</div>
+          <div class="author-tag">结婚 1 年 · 已实现 23 个愿望</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+
+<!-- ===== VIP ===== -->
+<section class="section vip" id="vip">
+  <div class="pricing-shell">
+    <div class="section-title">
+      <span class="tag">PRICING</span>
+      <h2>选择适合你们的陪伴方式</h2>
+      <p>6 款会员卡 + 3 款 AI 次卡，按周期或按需求灵活选择</p>
+    </div>
+
+    <div class="pricing-tabs" role="tablist" aria-label="定价类型">
+      <button type="button" class="pricing-tab is-active" id="pricing-tab-membership" role="tab" aria-selected="true" aria-controls="pricing-panel-membership" data-pricing-tab="membership">
+        会员卡 <span class="pricing-tab-count">6</span>
+      </button>
+      <button type="button" class="pricing-tab" id="pricing-tab-credit" role="tab" aria-selected="false" aria-controls="pricing-panel-credit" data-pricing-tab="credit" tabindex="-1">
+        AI 次卡 <span class="pricing-tab-count">3</span>
+      </button>
+    </div>
+
+    <div class="pricing-panel is-active" id="pricing-panel-membership" role="tabpanel" aria-labelledby="pricing-tab-membership" data-pricing-panel="membership">
+      <div class="pricing-grid" role="radiogroup" aria-label="会员卡套餐">
+        <button type="button" class="plan-card" role="radio" aria-checked="false" data-plan-card data-pricing-type="membership" data-name="免费版" data-price="¥0" data-period="/永久" data-note="从基础记录开始，0 成本创建属于你们的专属空间。" data-cta="立即免费使用">
+          <span class="plan-card-top"><span class="plan-symbol" aria-hidden="true">FREE</span><span class="plan-check" aria-hidden="true">✓</span></span>
+          <span class="plan-name">免费版</span>
+          <span class="plan-desc">基础记录与回顾</span>
+          <span class="price-amount"><small>¥</small>0<small>/永久</small></span>
+          <span class="plan-daily">不限期免费</span>
+          <span class="plan-rule"></span>
+          <span class="plan-tag">无需付费</span>
+        </button>
+
+        <button type="button" class="plan-card" role="radio" aria-checked="false" data-plan-card data-pricing-type="membership" data-name="周卡" data-price="¥5" data-period="/7天" data-note="用 7 天体验完整 VIP 权益，适合想先试试的你们。" data-cta="立即开通周卡">
+          <span class="plan-card-top"><span class="plan-symbol" aria-hidden="true">7D</span><span class="plan-check" aria-hidden="true">✓</span></span>
+          <span class="plan-name">周卡</span>
+          <span class="plan-desc">轻量体验完整 VIP</span>
+          <span class="price-amount"><small>¥</small>5<small>/7天</small></span>
+          <span class="plan-daily">折合约 ¥0.71 / 天</span>
+          <span class="plan-rule"></span>
+          <span class="plan-tag">短期体验</span>
+        </button>
+
+        <button type="button" class="plan-card is-recommended is-selected" role="radio" aria-checked="true" data-plan-card data-pricing-type="membership" data-name="月卡" data-price="¥15" data-period="/30天" data-note="完整 AI 功能与 9 大核心板块，灵活开启，按月陪伴。" data-cta="立即开通月卡">
+          <span class="price-badge">最受欢迎</span>
+          <span class="plan-card-top"><span class="plan-symbol" aria-hidden="true">30D</span><span class="plan-check" aria-hidden="true">✓</span></span>
+          <span class="plan-name">月卡</span>
+          <span class="plan-desc">日常使用最省心</span>
+          <span class="price-amount"><small>¥</small>15<small>/30天</small></span>
+          <span class="plan-daily">折合约 ¥0.50 / 天</span>
+          <span class="plan-rule"></span>
+          <span class="plan-tag">完整 VIP 权益</span>
+        </button>
+
+        <button type="button" class="plan-card" role="radio" aria-checked="false" data-plan-card data-pricing-type="membership" data-name="季卡" data-price="¥45" data-period="/90天" data-note="覆盖 90 天，维持完整 VIP 体验，适合稳定使用。" data-cta="立即开通季卡">
+          <span class="plan-card-top"><span class="plan-symbol" aria-hidden="true">90D</span><span class="plan-check" aria-hidden="true">✓</span></span>
+          <span class="plan-name">季卡</span>
+          <span class="plan-desc">连续陪伴 3 个月</span>
+          <span class="price-amount"><small>¥</small>45<small>/90天</small></span>
+          <span class="plan-daily">折合约 ¥0.50 / 天</span>
+          <span class="plan-rule"></span>
+          <span class="plan-tag">持续陪伴</span>
+        </button>
+
+        <button type="button" class="plan-card" role="radio" aria-checked="false" data-plan-card data-pricing-type="membership" data-name="年卡" data-price="¥165" data-period="/365天" data-note="有效期为 365 天，适合长期记录和持续使用。" data-cta="立即开通年卡">
+          <span class="plan-card-top"><span class="plan-symbol" aria-hidden="true">1Y</span><span class="plan-check" aria-hidden="true">✓</span></span>
+          <span class="plan-name">年卡</span>
+          <span class="plan-desc">长期记录更从容</span>
+          <span class="price-amount"><small>¥</small>165<small>/365天</small></span>
+          <span class="plan-daily">折合约 ¥0.45 / 天</span>
+          <span class="plan-rule"></span>
+          <span class="plan-tag">长期精选</span>
+        </button>
+
+        <button type="button" class="plan-card" role="radio" aria-checked="false" data-plan-card data-pricing-type="membership" data-name="永久卡" data-price="¥395" data-period="/永久" data-note="一次开通，长期保留完整 VIP 权益。" data-cta="立即开通永久卡">
+          <span class="plan-card-top"><span class="plan-symbol" aria-hidden="true">∞</span><span class="plan-check" aria-hidden="true">✓</span></span>
+          <span class="plan-name">永久卡</span>
+          <span class="plan-desc">一次开通，永久珍藏</span>
+          <span class="price-amount"><small>¥</small>395<small>/永久</small></span>
+          <span class="plan-daily">一次付费，长期有效</span>
+          <span class="plan-rule"></span>
+          <span class="plan-tag">终身 VIP</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="pricing-panel" id="pricing-panel-credit" role="tabpanel" aria-labelledby="pricing-tab-credit" data-pricing-panel="credit" hidden>
+      <div class="credit-grid" role="radiogroup" aria-label="AI 次卡">
+        <button type="button" class="credit-card is-selected" role="radio" aria-checked="true" data-plan-card data-pricing-type="credit" data-name="AI 化妆建议" data-price="¥0.5" data-period="/次" data-note="上传照片，获得适合约会场景的妆容建议。" data-cta="按需购买化妆次卡">
+          <span class="credit-icon" aria-hidden="true">💄</span>
+          <span class="credit-name">AI 化妆建议</span>
+          <span class="credit-desc">上传照片，获取约会妆容建议</span>
+          <span class="credit-price">¥0.5<small>/次</small></span>
+          <span class="credit-buy">点击选择</span>
+        </button>
+
+        <button type="button" class="credit-card" role="radio" aria-checked="false" data-plan-card data-pricing-type="credit" data-name="AI 约会建议" data-price="¥0.3" data-period="/次" data-note="根据你们的状态和偏好，生成更有巧思的约会方案。" data-cta="按需购买约会次卡">
+          <span class="credit-icon" aria-hidden="true">📅</span>
+          <span class="credit-name">AI 约会建议</span>
+          <span class="credit-desc">生成更有巧思的约会方案</span>
+          <span class="credit-price">¥0.3<small>/次</small></span>
+          <span class="credit-buy">点击选择</span>
+        </button>
+
+        <button type="button" class="credit-card" role="radio" aria-checked="false" data-plan-card data-pricing-type="credit" data-name="AI 心愿建议" data-price="¥0.3" data-period="/次" data-note="为心愿清单提供更贴合你们关系的灵感与推荐。" data-cta="按需购买心愿次卡">
+          <span class="credit-icon" aria-hidden="true">💝</span>
+          <span class="credit-name">AI 心愿建议</span>
+          <span class="credit-desc">为心愿清单提供灵感与推荐</span>
+          <span class="credit-price">¥0.3<small>/次</small></span>
+          <span class="credit-buy">点击选择</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="pricing-summary" aria-live="polite">
+      <div class="summary-copy">
+        <div class="summary-label"><span class="summary-dot"></span>当前选择</div>
+        <div class="summary-main">
+          <strong id="pricingSelectionName">月卡</strong>
+          <span class="summary-price"><b id="pricingSelectionPrice">¥15</b><small id="pricingSelectionPeriod">/30天</small></span>
+        </div>
+        <p id="pricingSelectionNote">完整 AI 功能与 9 大核心板块，灵活开启，按月陪伴。</p>
+      </div>
+      <a href="#" class="pricing-cta" data-action="contact">
+        <span id="pricingCtaLabel">立即开通月卡</span><span aria-hidden="true">→</span>
+      </a>
+    </div>
+
+    <p class="pricing-disclaimer">
+      <span class="disclaimer-icon" aria-hidden="true">📌</span>
+      <span>以上价格仅供参考，最终以 <strong>APP 内显示价格</strong> 为准。实际定价如有调整，将通过 APP 内通知告知。</span>
+    </p>
+  </div>
+</section>
+
+<!-- ===== Early Bird ===== -->
+<section class="section earlybird" id="earlybird">
+  <div class="section-title">
+    <span class="tag">EARLY BIRD</span>
+    <h2>早鸟限时 ¥2 / 7 天 VIP</h2>
+    <p>第一批用户专享限时价 ¥2，错过不再有 · 限量 1,000 个名额</p>
+  </div>
+  <div class="earlybird-content">
+    <div class="earlybird-card">
+      <div class="eb-icon">🎁</div>
+      <h3>¥2 · 7 天 VIP 全功能</h3>
+      <p>仅需 ¥2 即可获得 7 天完整 VIP，体验 AI 情感聊天、AI 化妆建议、智能约会等全部功能</p>
+      <div class="eb-value">仅需 ¥2</div>
+    </div>
+    <div class="earlybird-card">
+      <div class="eb-icon">🏅</div>
+      <h3>限定"早鸟"勋章</h3>
+      <p>个人主页永久展示，让你们成为 LoveOfUs 官方认证的第一批元老用户</p>
+      <div class="eb-value">永久珍藏</div>
+    </div>
+    <div class="earlybird-card">
+      <div class="eb-icon">⚡</div>
+      <h3>新功能优先体验</h3>
+      <p>所有新功能上线第一时间体验，反馈直达产品经理，参与产品共创</p>
+      <div class="eb-value">VIP 通道</div>
+    </div>
+  </div>
+  <div class="earlybird-cta">
+    <p>⏰ 限时开放 1,000 个名额 · 价值 ¥19 VIP 体验 · 仅需 ¥2</p>
+    <button type="button" class="btn" data-action="contact">立即 ¥2 领取早鸟特权 →</button>
+  </div>
+</section>
+<!-- ===== FAQ ===== -->
+<section class="section faq" id="faq">
+  <div class="section-title">
+    <span class="tag">FAQ</span>
+    <h2>常见问题</h2>
+    <p>关于 LoveOfUs，你可能想知道</p>
+  </div>
+  <div class="faq-list">
+    <div class="faq-item">
+      <div class="faq-q">LoveOfUs 是免费的吗？</div>
+      <div class="faq-a"><p>LoveOfUs 提供多种套餐供您选择，灵活满足不同需求：</p><p><strong>【会员卡 · 6 款】</strong></p><ul><li><strong>免费版：</strong>¥0 / 永久，基础功能永久免费</li><li><strong>周卡：</strong>¥5 / 7 天，短期体验</li><li><strong>月卡：</strong>¥15 / 30 天（最受欢迎）</li><li><strong>季卡：</strong>¥45 / 90 天</li><li><strong>年卡：</strong>¥165 / 365 天</li><li><strong>永久卡：</strong>¥395，一次付费终身 VIP</li></ul><p><strong>【次卡 · 按需使用 · 3 款】</strong></p><ul><li><strong>AI 化妆建议：</strong>¥0.5 / 次</li><li><strong>AI 约会建议：</strong>¥0.3 / 次</li><li><strong>AI 心愿建议：</strong>¥0.3 / 次</li></ul><p>所有套餐无任何强制消费，会员卡可随时取消。次卡适合按需使用，付费会员卡期间次卡不限次数。</p></div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">我们的照片安全吗？</div>
+      <div class="faq-a">完全安全。所有照片使用阿里云 OSS 对象存储加密保存，仅情侣双方可见。我们采用端到端加密传输，绝不会用于任何商业用途，更不会被第三方读取。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">异地恋也能用吗？</div>
+      <div class="faq-a">当然可以！LoveOfUs 专为情侣设计，无论同城还是异地都适用。通过情侣绑定码，你们可以共同编辑、共同查看彼此上传的照片和心情，是异地恋的最佳陪伴。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">支持哪些平台？</div>
+      <div class="faq-a">LoveOfUs 是基于浏览器的 Web 应用，无需下载安装。支持手机、平板、电脑全平台访问，H5 完美适配 iOS / Android 系统，Chrome / Safari / Edge 主流浏览器均流畅运行。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">如何邀请另一半加入？</div>
+      <div class="faq-a">注册后进入个人中心，使用「情侣绑定」功能。生成专属邀请码，TA 输入即可绑定。所有数据会双向同步，你们的回忆从此只属于彼此。</div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ===== Final CTA ===== -->
+<section class="final-cta" id="cta">
+  <h2>开始你们的爱情故事</h2>
+  <p>10万+ 情侣已经在这里记录了他们最珍贵的回忆<br>下一个，就该是你们了</p>
+  <button type="button" class="btn" data-action="contact">💕 免费开启</button>
+</section>
+
+<!-- ===== Footer ===== -->
+<footer class="footer">
+  <div class="footer-links">
+    <a href="#" data-modal="aboutModal">关于我们</a>
+    <a href="#" data-modal="privacyModal">隐私政策</a>
+    <a href="#" data-modal="termsModal">用户协议</a>
+    <a href="#" data-action="contact">联系我们</a>
+  </div>
+  <p>© 2026 LoveOfUs · 让每一份爱，都有迹可循</p>
+  <p style="margin-top:6px">用 <span class="heart-inline">❤️</span> 制作 · 献给每一对认真相爱的情侣</p>
+</footer>
+
+<!-- ===== Modal: 联系顾问 ===== -->
+<div class="modal-mask" id="contactModal" role="dialog" aria-modal="true" aria-labelledby="contactTitle">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="contactTitle">💕 联系专属顾问</div>
+      <button class="modal-close" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="modal-body contact-content">
+      <span class="contact-avatar">👨‍💼</span>
+      <div class="contact-company">xjl 科技有限公司</div>
+      <div class="contact-tip">为您提供 1 对 1 专属顾问服务</div>
+      <div class="contact-email-box">
+        <div class="contact-email-label">专属顾问邮箱</div>
+        <div class="contact-email" id="contactEmail">xjl20041115@126.com</div>
+      </div>
+      <button type="button" class="btn btn-primary" id="copyEmailBtn" style="width:100%">📋 一键复制邮箱</button>
+      <div class="contact-footer">提交申请后，顾问会在 24 小时内联系您<br>所有问题均可咨询，无任何强制消费</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Modal: 关于我们 ===== -->
+<div class="modal-mask" id="aboutModal" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="aboutTitle">💖 关于我们</div>
+      <button class="modal-close" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="modal-body">
+      <h3>关于 xjl 科技有限公司</h3>
+      <p>xjl 科技有限公司是一家专注于<strong>情感 AI</strong>与<strong>情侣关系管理</strong>的科技公司。我们相信"每一份爱，都值得被认真记录"，致力于通过 AI 技术为情侣用户提供更智能、更私密、更有温度的爱情记录与陪伴服务。</p>
+
+      <h3>我们的产品</h3>
+      <p><strong>LoveOfUs</strong> 是公司旗下核心产品，提供足迹地图、时间线相册、纪念日提醒、AI 情感聊天、AI 化妆建议、智能约会计划、心愿清单、必做 100 件小事等 9 大核心功能，已服务 10 万+ 情侣用户。</p>
+
+      <h3>技术能力</h3>
+      <ul>
+        <li>基于 Vue 3 + Spring Boot + FastAI 的前后端分离架构</li>
+        <li>自研 CLIP、FaceNet 等垂直领域 AI 模型，深度精调</li>
+        <li>端到端加密技术 + 阿里云 OSS 对象存储，确保用户隐私安全</li>
+        <li>支持千万级照片毫秒级检索</li>
+      </ul>
+
+      <h3>团队使命</h3>
+      <p>用技术让爱情更长久，让回忆更鲜活。我们坚信：爱情的最好模样，是被记录、被珍藏、被回忆。</p>
+
+      <h3>联系 xjl 科技</h3>
+      <p>专属顾问邮箱：<strong>xjl20041115@126.com</strong></p>
+      <p>我们将在 24 小时内认真回复您的每一封来信。无论是产品咨询、合作洽谈、还是单纯想说点什么，都欢迎写信给我们。</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" data-close>关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Modal: 隐私政策 ===== -->
+<div class="modal-mask" id="privacyModal" role="dialog" aria-modal="true" aria-labelledby="privacyTitle">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="privacyTitle">🔒 隐私政策</div>
+      <button class="modal-close" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="modal-body">      <h3>一、我们收集的信息</h3>
+      <p>为向您提供 LoveOfUs 服务，我们可能收集以下信息：</p>
+      <ul>
+        <li><strong>账户信息：</strong>手机号 / 邮箱、密码（加密存储）、情侣绑定码</li>
+        <li><strong>照片信息：</strong>您主动上传的照片（含 EXIF 元数据、GPS 位置信息）</li>
+        <li><strong>使用数据：</strong>访问时间、功能使用频次、设备型号</li>
+        <li><strong>位置信息：</strong>仅在您主动上传含位置的照片时获取，可随时关闭</li>
+      </ul>
+
+      <h3>二、信息使用方式</h3>
+      <ul>
+        <li>提供并维护 LoveOfUs 的核心功能（相册、时间线、足迹地图、纪念日等）</li>
+        <li>AI 智能分析（场景识别、化妆建议、情感陪伴）</li>
+        <li>账号安全保护与异常登录提醒</li>
+        <li>产品优化与新功能研发</li>
+      </ul>
+
+      <h3>三、信息存储与保护</h3>
+      <p>我们采用业界领先的安全措施保护您的数据：</p>
+      <ul>
+        <li>所有照片使用阿里云 OSS 对象存储加密保存</li>
+        <li>数据传输采用 HTTPS + TLS 1.3 加密</li>
+        <li>数据库采用 AES-256 加密存储</li>
+        <li>访问采用最小权限原则，仅情侣双方可见</li>
+      </ul>
+
+      <h3>四、第三方共享</h3>
+      <p><strong>我们郑重承诺：</strong>绝不将您的照片、情感数据等隐私内容出售给任何第三方。仅在以下情况例外：</p>
+      <ul>
+        <li>获得您的明确授权</li>
+        <li>法律法规强制要求（如司法调查）</li>
+        <li>为完成您主动发起的分享功能（如导出给指定收件人）</li>
+      </ul>
+
+      <h3>五、您的权利</h3>
+      <ul>
+        <li>查看、修改、删除个人信息</li>
+        <li>导出全部个人数据</li>
+        <li>注销账号并永久删除所有数据</li>
+        <li>关闭个性化推荐</li>
+      </ul>
+
+      <h3>六、未成年人保护</h3>
+      <p>LoveOfUs 面向成年人群使用。我们不会主动收集未成年人的个人信息。如发现，请联系我们的专属顾问邮箱，我们将立即删除相关数据。</p>
+
+      <h3>七、Cookie 与同类技术</h3>
+      <p>我们仅使用必要的 Cookie 维持登录状态，不使用任何第三方追踪 Cookie。</p>
+
+      <h3>八、政策更新</h3>
+      <p>如本政策发生重大变更，我们会通过站内通知或邮件告知您。继续使用服务即视为接受更新后的政策。</p>
+
+      <h3>九、联系我们</h3>
+      <p>如有任何隐私问题，请联系专属顾问邮箱：<strong>xjl20041115@126.com</strong></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" data-close>关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Modal: 用户协议 ===== -->
+<div class="modal-mask" id="termsModal" role="dialog" aria-modal="true" aria-labelledby="termsTitle">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="termsTitle">📜 用户协议</div>
+      <button class="modal-close" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="modal-body">
+      <p><strong>在使用 LoveOfUs 之前，请仔细阅读本《用户协议》。</strong>访问或使用本服务即视为您同意本协议全部条款。</p>
+
+      <h3>一、服务内容</h3>
+      <p>LoveOfUs 是由 xjl 科技有限公司（以下简称"我们"）提供的情侣专属照片管理与情感记录 Web 应用，包括但不限于：照片上传、时间线浏览、足迹地图、纪念日提醒、AI 聊天、AI 化妆建议、约会计划、心愿清单等功能。</p>
+
+      <h3>二、账号注册与使用</h3>
+      <ul>
+        <li>您需提供真实有效的信息完成注册</li>
+        <li>账号仅限本人使用，不得转让、出借</li>
+        <li>请妥善保管密码，因密码泄露造成的损失由您自行承担</li>
+        <li>情侣绑定需双方确认，绑定后数据双向同步</li>
+      </ul>
+
+      <h3>三、用户行为规范</h3>
+      <p>您承诺不对 LoveOfUs 从事以下行为：</p>
+      <ul>
+        <li>上传违反法律法规的内容（色情、暴力、政治敏感等）</li>
+        <li>上传侵犯他人知识产权或隐私权的内容</li>
+        <li>利用服务从事商业牟利活动（未经授权）</li>
+        <li>对系统进行反向工程、攻击、破解等行为</li>
+        <li>发布骚扰、辱骂、欺诈等不当信息</li>
+      </ul>
+
+      <h3>四、内容所有权</h3>
+      <ul>
+        <li><strong>您的内容归您所有：</strong>您上传的照片、文字等内容，著作权归您</li>
+        <li><strong>许可范围：</strong>您授予我们非独家的、有限的使用许可，仅用于为您提供服务（如 AI 分析、相册生成）</li>
+        <li><strong>情侣共享：</strong>绑定情侣后，双方可查看、上传、编辑共有内容</li>
+      </ul>
+
+      <h3>五、VIP 会员服务</h3>
+      <ul>
+        <li>VIP 会员按月 / 按年订阅，可随时取消</li>
+        <li>已支付的订阅费用原则上不予退款（特殊情况除外）</li>
+        <li>VIP 权益包括但不限于：AI 高级功能、无限纪念日、专属相册模板</li>
+        <li>我们保留调整 VIP 权益内容的权利，将提前 7 天通知</li>
+      </ul>
+
+      <h3>六、知识产权</h3>
+      <p>LoveOfUs 的产品设计、UI、技术代码、品牌商标等知识产权归 xjl 科技有限公司所有，未经书面授权不得使用。</p>
+
+      <h3>七、免责声明</h3>
+      <ul>
+        <li>服务按"现状"提供，我们尽力但不保证服务无中断、无错误</li>
+        <li>因不可抗力（自然灾害、网络中断等）导致的服务中断，我们不承担责任</li>
+        <li>用户间因使用本服务产生的纠纷，由双方自行解决</li>
+      </ul>
+
+      <h3>八、服务变更与终止</h3>
+      <ul>
+        <li>我们保留随时修改或终止部分功能的权利</li>
+        <li>如您严重违反本协议，我们有权暂停或终止您的账号</li>
+        <li>您可随时注销账号，注销后数据将按隐私政策处理</li>
+      </ul>
+
+      <h3>九、争议解决</h3>
+      <p>本协议适用中华人民共和国法律。因本协议产生的争议，双方应友好协商；协商不成的，提交 xjl 科技有限公司所在地有管辖权的人民法院诉讼解决。</p>
+
+      <h3>十、协议修改</h3>
+      <p>我们可根据业务发展修改本协议，修改后将通过站内通知或邮件告知。继续使用即视为接受修改。</p>
+
+      <h3>十一、联系我们</h3>
+      <p>如对本协议有任何疑问，请联系专属顾问邮箱：<strong>xjl20041115@126.com</strong></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" data-close>关闭</button>
+    </div>
+  </div>
+</div>
+<script>
+// FAQ 折叠
+document.querySelectorAll('.faq-q').forEach(q => {
+  q.addEventListener('click', () => {
+    const item = q.parentElement;
+    item.classList.toggle('open');
+  });
+});
+
+// 滚动显示动画
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('show');
+    }
+  });
+}, { threshold: 0.08 });
+
+document.querySelectorAll('section').forEach(s => {
+  s.classList.add('reveal');
+  observer.observe(s);
+});
+
+// 导航栏滚动效果
+window.addEventListener('scroll', () => {
+  const navbar = document.getElementById('navbar');
+  if (window.scrollY > 30) {
+    navbar.style.boxShadow = '0 4px 18px rgba(0,0,0,.06)';
+  } else {
+    navbar.style.boxShadow = 'none';
+  }
+});
+
+// 移动端导航菜单
+(function(){
+  const navbar = document.getElementById('navbar');
+  const toggle = document.getElementById('navToggle');
+  const links = document.getElementById('siteNav');
+  if (!navbar || !toggle || !links) return;
+
+  function setMenu(open){
+    navbar.classList.toggle('menu-open', open);
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.setAttribute('aria-label', open ? '关闭导航菜单' : '打开导航菜单');
+    toggle.textContent = open ? '×' : '☰';
+  }
+
+  toggle.addEventListener('click', () => {
+    setMenu(!navbar.classList.contains('menu-open'));
+  });
+  links.querySelectorAll('a').forEach(link => {
+    link.addEventListener('click', () => setMenu(false));
+  });
+  document.addEventListener('click', event => {
+    if (navbar.classList.contains('menu-open') && !navbar.contains(event.target)) setMenu(false);
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') setMenu(false);
+  });
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 820) setMenu(false);
+  });
+})();
+
+// ===== Hearts Burst Effect =====
+(function(){
+  const layer = document.getElementById('heartsLayer');
+  const NS    = 'http://www.w3.org/2000/svg';
+  // 红色系 5 档：深红 / 正红 / 主色 / 浅红 / 玫粉，全为红色调
+  const COLORS = ['#C70015','#E63946','#FF4757','#FF6B6B','#FF9F9F'];
+  // 主体爱心 path（Material 风格）
+  const HEART_PATH = 'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z';
+  const rand = (a,b)=>Math.random()*(b-a)+a;
+
+  // 创建红色 SVG 爱心，可选白色描边
+  function makeHeart(color, withStroke){
+    const svg = document.createElementNS(NS,'svg');
+    svg.setAttribute('viewBox','0 0 24 24');
+    svg.setAttribute('class','heart-svg');
+    const p = document.createElementNS(NS,'path');
+    p.setAttribute('d', HEART_PATH);
+    p.setAttribute('fill', color);
+    if (withStroke) {
+      p.setAttribute('stroke','#fff');
+      p.setAttribute('stroke-width','1.2');
+      p.setAttribute('stroke-linejoin','round');
+    }
+    svg.appendChild(p);
+    return svg;
+  }
+
+  function burst(x,y,count=10,power=1){
+    for(let i=0;i<count;i++){
+      const el = document.createElement('span');
+      el.className = 'heart-particle';
+
+      // 随机角度：360° 均匀分布 + 抖动 → 触电向四周绽放
+      const base  = (i/count)*Math.PI*2;
+      const angle = base + rand(-0.35,0.35);
+      const dist  = rand(70,180)*power;
+      const dx    = Math.cos(angle)*dist;
+      const dy    = Math.sin(angle)*dist;
+      const rot   = rand(-200,200);
+      const size  = rand(20,38);
+      const color = COLORS[(Math.random()*COLORS.length)|0];
+      // 25% 概率加白色描边，增加层次
+      const withStroke = Math.random() < 0.25;
+
+      el.style.left=x+"px";el.style.top=y+"px";el.style.width=size+"px";el.style.height=size+"px";el.style.setProperty("--dx",dx+"px");el.style.setProperty("--dy",dy+"px");el.style.setProperty("--rot",rot+"deg");el.style.opacity=String(rand(.85,1));
+      el.appendChild(makeHeart(color, withStroke));
+      layer.appendChild(el);
+      setTimeout(()=>el.remove(),1200);
+    }
+  }
+
+  // === 桌面端 ===
+  // 点击：强爆发
+  document.addEventListener('click',(e)=>{
+    burst(e.clientX,e.clientY,12,1.2);
+  });
+  // 鼠标移动：轻柔飘散
+  let lastM=0;
+  document.addEventListener('mousemove',(e)=>{
+    const now=Date.now();
+    if(now-lastM<80)return;
+    lastM=now;
+    burst(e.clientX,e.clientY,3,0.55);
+  });
+
+  // === 移动端 ===
+  // 手指按下：中等爆发
+  document.addEventListener('touchstart',(e)=>{
+    const t = e.touches && e.touches[0];
+    if (t) burst(t.clientX,t.clientY,8,1);
+  }, {passive:true});
+  // 手指拖动：跟随飘散（passive 不阻止页面滚动）
+  let lastT=0;
+  document.addEventListener('touchmove',(e)=>{
+    const t = e.touches && e.touches[0];
+    if (!t) return;
+    const now=Date.now();
+    if(now-lastT<100)return;
+    lastT=now;
+    burst(t.clientX,t.clientY,2,0.5);
+  }, {passive:true});
+})();
+// ===== Pricing Interaction =====
+(function(){
+  const tabs = Array.from(document.querySelectorAll('[data-pricing-tab]'));
+  const panels = Array.from(document.querySelectorAll('[data-pricing-panel]'));
+  const cards = Array.from(document.querySelectorAll('[data-plan-card]'));
+  const summary = {
+    name: document.getElementById('pricingSelectionName'),
+    price: document.getElementById('pricingSelectionPrice'),
+    period: document.getElementById('pricingSelectionPeriod'),
+    note: document.getElementById('pricingSelectionNote'),
+    cta: document.getElementById('pricingCtaLabel')
+  };
+  const selected = {};
+
+  if (!tabs.length || !cards.length || !summary.name) return;
+
+  cards.forEach(card => {
+    const type = card.dataset.pricingType;
+    if (card.classList.contains('is-selected') || !selected[type]) selected[type] = card;
+  });
+
+  function updateSummary(card){
+    const data = card.dataset;
+    summary.name.textContent = data.name;
+    summary.price.textContent = data.price;
+    summary.period.textContent = data.period;
+    summary.note.textContent = data.note;
+    summary.cta.textContent = data.cta;
+  }
+
+  function selectCard(card, shouldFocus){
+    const type = card.dataset.pricingType;
+    const group = cards.filter(item => item.dataset.pricingType === type);
+    group.forEach(item => {
+      const active = item === card;
+      item.classList.toggle('is-selected', active);
+      item.setAttribute('aria-checked', String(active));
+    });
+    selected[type] = card;
+    updateSummary(card);
+    if (shouldFocus) card.focus();
+  }
+
+  cards.forEach(card => {
+    card.addEventListener('click', () => selectCard(card, false));
+    card.addEventListener('mousemove', event => {
+      const rect = card.getBoundingClientRect();
+      card.style.setProperty('--mx', (event.clientX - rect.left) + 'px');
+      card.style.setProperty('--my', (event.clientY - rect.top) + 'px');
+    });
+    card.addEventListener('keydown', event => {
+      const keys = ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'];
+      if (!keys.includes(event.key)) return;
+      event.preventDefault();
+      const group = cards.filter(item => item.dataset.pricingType === card.dataset.pricingType);
+      const columns = Math.max(1, getComputedStyle(card.parentElement).gridTemplateColumns.split(' ').filter(Boolean).length);
+      const direction = (event.key === 'ArrowRight' || event.key === 'ArrowDown') ? 1 : -1;
+      const step = (event.key === 'ArrowUp' || event.key === 'ArrowDown') ? columns : 1;
+      const index = group.indexOf(card);
+      const next = group[(index + direction * step + group.length) % group.length];
+      selectCard(next, true);
+    });
+  });
+
+  function activateTab(type, shouldFocus){
+    tabs.forEach(tab => {
+      const active = tab.dataset.pricingTab === type;
+      tab.classList.toggle('is-active', active);
+      tab.setAttribute('aria-selected', String(active));
+      tab.tabIndex = active ? 0 : -1;
+      if (active && shouldFocus) tab.focus();
+    });
+    panels.forEach(panel => {
+      const active = panel.dataset.pricingPanel === type;
+      panel.classList.toggle('is-active', active);
+      panel.hidden = !active;
+    });
+    if (selected[type]) updateSummary(selected[type]);
+  }
+
+  tabs.forEach((tab, index) => {
+    tab.addEventListener('click', () => activateTab(tab.dataset.pricingTab, false));
+    tab.addEventListener('keydown', event => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      event.preventDefault();
+      const direction = event.key === 'ArrowRight' ? 1 : -1;
+      const next = tabs[(index + direction + tabs.length) % tabs.length];
+      activateTab(next.dataset.pricingTab, true);
+    });
+  });
+
+  activateTab('membership', false);
+})();
+
+// ===== Modal 控制 =====
+(function(){
+  function open(id){
+    const m = document.getElementById(id);
+    if (m) { m.classList.add('show'); document.body.style.overflow = 'hidden'; }
+  }
+  function close(modalEl){
+    if (modalEl) { modalEl.classList.remove('show'); document.body.style.overflow = ''; }
+  }
+
+  // 触发联系
+  document.querySelectorAll('[data-action="contact"]').forEach(btn => {
+    btn.addEventListener('click', e => { e.preventDefault(); open('contactModal'); });
+  });
+
+  // 触发指定 modal
+  document.querySelectorAll('[data-modal]').forEach(el => {
+    el.addEventListener('click', e => { e.preventDefault(); open(el.dataset.modal); });
+  });
+
+  // 关闭按钮
+  document.querySelectorAll('[data-close]').forEach(btn => {
+    btn.addEventListener('click', () => close(btn.closest('.modal-mask')));
+  });
+
+  // 遮罩点击关闭
+  document.querySelectorAll('.modal-mask').forEach(mask => {
+    mask.addEventListener('click', e => { if (e.target === mask) close(mask); });
+  });
+
+  // ESC 关闭
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.modal-mask.show').forEach(close);
+    }
+  });
+
+  // 复制邮箱
+  const copyBtn = document.getElementById('copyEmailBtn');
+  const emailEl = document.getElementById('contactEmail');
+  if (copyBtn && emailEl) {
+    const origText = copyBtn.textContent;
+    copyBtn.addEventListener('click', () => {
+      const email = emailEl.textContent.trim();
+      const onOk = () => {
+        copyBtn.textContent = '✓ 已复制到剪贴板';
+        copyBtn.classList.add('copy-success');
+        setTimeout(() => {
+          copyBtn.textContent = origText;
+          copyBtn.classList.remove('copy-success');
+        }, 2200);
+      };
+      const fallback = () => {
+        const i = document.createElement('textarea');
+        i.value = email;
+        i.style.cssText = 'position:fixed;left:-9999px';
+        document.body.appendChild(i);
+        i.select();
+        try { document.execCommand('copy'); onOk(); } catch (e) {}
+        i.remove();
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(email).then(onOk).catch(fallback);
+      } else {
+        fallback();
+      }
+    });
+  }
+})();</script>
+
+
+</body>
+</html>

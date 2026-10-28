@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.lovemap.mapper.ShippingAddressMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.lovemap.model.entity.ShippingAddress">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="receiver_name" property="receiverName"/>
+        <result column="receiver_phone" property="receiverPhone"/>
+        <result column="province" property="province"/>
+        <result column="city" property="city"/>
+        <result column="detail_address" property="detailAddress"/>
+        <result column="is_default" property="isDefault"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="BaseColumns">
+        id, user_id, receiver_name, receiver_phone, province, city, detail_address,
+        is_default, created_at, updated_at
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO shipping_address (user_id, receiver_name, receiver_phone, province, city,
+                                      detail_address, is_default, created_at, updated_at)
+        VALUES (#{userId}, #{receiverName}, #{receiverPhone}, #{province}, #{city},
+                #{detailAddress}, #{isDefault}, NOW(), NOW())
+    </insert>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM shipping_address
+        WHERE id = #{id}
+        LIMIT 1
+    </select>
+
+    <select id="selectByUser" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM shipping_address
+        WHERE user_id = #{userId}
+        ORDER BY is_default DESC, id DESC
+    </select>
+
+    <update id="update">
+        UPDATE shipping_address
+        SET receiver_name  = #{receiverName},
+            receiver_phone = #{receiverPhone},
+            province       = #{province},
+            city           = #{city},
+            detail_address = #{detailAddress},
+            is_default     = #{isDefault}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM shipping_address WHERE id = #{id}
+    </delete>
+
+    <update id="clearDefault">
+        UPDATE shipping_address SET is_default = 0 WHERE user_id = #{userId}
+    </update>
+
+    <update id="setDefault">
+        UPDATE shipping_address SET is_default = 1 WHERE id = #{id}
+    </update>
+
+</mapper>

@@ -10,6 +10,7 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
@@ -87,16 +88,17 @@ public class AsyncMailService {
     /**
      * 异步发送 VIP 下单通知邮件给专属顾问
      *
-     * @param to              顾问邮箱
-     * @param nickname        下单用户昵称
-     * @param tierName        VIP 档位名称
-     * @param priceYuan       档位价格（元）
-     * @param orderNo         订单号
-     * @param activateCommand 顾问收款后开通订单的命令
+     * @param to        顾问邮箱
+     * @param nickname  下单用户昵称
+     * @param phone     下单用户手机号（明文）
+     * @param email     下单用户邮箱
+     * @param tierName  VIP 档位名称
+     * @param priceYuan 档位价格（元）
+     * @param orderNo   订单号
      */
     @Async("verifyCodeExecutor")
-    public void sendVipOrderMailAsync(String to, String nickname, String tierName, Integer priceYuan,
-                                      String orderNo, String activateCommand) {
+    public void sendVipOrderMailAsync(String to, String nickname, String phone, String email,
+                                      String tierName, BigDecimal priceYuan, String orderNo) {
         long startTime = System.currentTimeMillis();
         try {
             MimeMessage mimeMessage = javaMailSender.createMimeMessage();
@@ -104,12 +106,215 @@ public class AsyncMailService {
             helper.setFrom(from, senderName);
             helper.setTo(to);
             helper.setSubject("【" + senderName + "】VIP 开通申请 - " + nickname + " - " + tierName);
-            helper.setText(buildVipOrderContent(nickname, tierName, priceYuan, orderNo, activateCommand), true);
+            helper.setText(buildVipOrderContent(nickname, phone, email, tierName, priceYuan, orderNo), true);
             javaMailSender.send(mimeMessage);
             log.info("VIP 开通申请邮件发送成功, 耗时{}ms, 收件人:{}, 订单号:{}", System.currentTimeMillis() - startTime, to, orderNo);
         } catch (Exception e) {
             log.error("VIP 开通申请邮件发送失败, 耗时{}ms, 收件人:{}, 订单号:{}, 错误:{}", System.currentTimeMillis() - startTime, to, orderNo, e.getMessage());
         }
+    }
+
+    /**
+     * 异步发送次卡开通申请邮件（与 VIP 卡流程一致，由顾问收款后开通）
+     */
+    @Async("verifyCodeExecutor")
+    public void sendQuotaOrderMailAsync(String to, String nickname, String phone, String email,
+                                        String quotaTypeName, Integer quotaCount, BigDecimal priceYuan, String orderNo) {
+        long startTime = System.currentTimeMillis();
+        try {
+            MimeMessage mimeMessage = javaMailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
+            helper.setFrom(from, senderName);
+            helper.setTo(to);
+            helper.setSubject("【" + senderName + "】次卡开通申请 - " + nickname + " - " + quotaTypeName + " +" + quotaCount);
+            helper.setText(buildQuotaOrderContent(nickname, phone, email, quotaTypeName, quotaCount, priceYuan, orderNo), true);
+            javaMailSender.send(mimeMessage);
+            log.info("次卡开通申请邮件发送成功, 耗时{}ms, 收件人:{}, 订单号:{}", System.currentTimeMillis() - startTime, to, orderNo);
+        } catch (Exception e) {
+            log.error("次卡开通申请邮件发送失败, 耗时{}ms, 收件人:{}, 订单号:{}, 错误:{}", System.currentTimeMillis() - startTime, to, orderNo, e.getMessage());
+        }
+    }
+
+    /**
+     * 异步发送积分商品订单通知邮件给专属顾问
+     *
+     * @param to          顾问邮箱
+     * @param nickname    下单用户昵称
+     * @param phone       下单用户手机号
+     * @param email       下单用户邮箱
+     * @param productName 商品名称
+     * @param pointsCost  单价积分
+     * @param quantity    兑换数量
+     * @param amountYuan  需付款金额（元）
+     * @param orderNo     订单号
+     */
+    @Async("verifyCodeExecutor")
+    public void sendPointOrderMailAsync(String to, String nickname, String phone, String email,
+                                        String productName, Integer pointsCost, Integer quantity,
+                                        BigDecimal amountYuan, String orderNo,
+                                        String receiverName, String shippingAddress) {
+        long startTime = System.currentTimeMillis();
+        try {
+            MimeMessage mimeMessage = javaMailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
+            helper.setFrom(from, senderName);
+            helper.setTo(to);
+            helper.setSubject("【" + senderName + "】积分商品兑换申请 - " + nickname + " - " + productName);
+            helper.setText(buildPointOrderContent(nickname, phone, email, productName,
+                    pointsCost, quantity, amountYuan, orderNo, receiverName, shippingAddress), true);
+            javaMailSender.send(mimeMessage);
+            log.info("积分商品订单邮件发送成功, 耗时{}ms, 收件人:{}, 订单号:{}",
+                    System.currentTimeMillis() - startTime, to, orderNo);
+        } catch (Exception e) {
+            log.error("积分商品订单邮件发送失败, 耗时{}ms, 收件人:{}, 订单号:{}, 错误:{}",
+                    System.currentTimeMillis() - startTime, to, orderNo, e.getMessage());
+        }
+    }
+
+    /**
+     * 构建积分商品订单通知邮件内容（HTML）
+     */
+    private String buildPointOrderContent(String nickname, String phone, String email,
+                                          String productName, Integer pointsCost, Integer quantity,
+                                          BigDecimal amountYuan, String orderNo,
+                                          String receiverName, String shippingAddress) {
+        String time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        String safePhone = phone == null ? "-" : phone;
+        String safeEmail = email == null ? "-" : email;
+        String safeReceiver = (receiverName == null ? "-" : receiverName)
+                + " / " + (shippingAddress == null ? "-" : shippingAddress);
+        int totalPoints = (pointsCost == null ? 0 : pointsCost) * (quantity == null ? 1 : quantity);
+        return String.format(
+                "<div style=\"font-family: 'Microsoft YaHei', Arial, sans-serif; max-width: 600px; margin: 0 auto;\">" +
+                        "<div style=\"padding: 30px; text-align: center; border-bottom: 2px solid #e74c3c;\">" +
+                        "<h1 style=\"color: #e74c3c; margin: 0; font-size: 26px; font-weight: 600; letter-spacing: 2px;\">❤ LoveOfUs</h1>" +
+                        "<p style=\"color: #888888; margin: 10px 0 0 0; font-size: 14px;\">记录我们的每一刻</p>" +
+                        "</div>" +
+                        "<div style=\"padding: 40px 30px;\">" +
+                        "<h2 style=\"color: #333333; margin: 0 0 20px 0; font-size: 20px; font-weight: 600; border-left: 4px solid #e74c3c; padding-left: 12px;\">积分商品兑换申请</h2>" +
+                        "<div style=\"background: #fff5f5; border-radius: 12px; padding: 25px; margin: 20px 0;\">" +
+                        "<p style=\"color: #666666; font-size: 15px; line-height: 1.8; margin: 0 0 10px 0;\">" +
+                        "用户：<span style=\"color: #e74c3c; font-weight: bold;\">%s</span>" +
+                        "</p>" +
+                        "<p style=\"color: #666666; font-size: 15px; line-height: 1.8; margin: 0 0 10px 0;\">" +
+                        "商品：<span style=\"color: #e74c3c; font-weight: bold;\">%s × %d</span>" +
+                        "</p>" +
+                        "<p style=\"color: #666666; font-size: 15px; line-height: 1.8; margin: 0 0 10px 0;\">" +
+                        "需付款：<span style=\"color: #e74c3c; font-weight: bold;\">%s 元</span>，抵扣积分：%d" +
+                        "</p>" +
+                        "<p style=\"color: #666666; font-size: 15px; line-height: 1.8; margin: 0 0 10px 0;\">" +
+                        "手机号：<span style=\"color: #e74c3c; font-weight: bold;\">%s</span>" +
+                        "</p>" +
+                        "<p style=\"color: #666666; font-size: 15px; line-height: 1.8; margin: 0 0 10px 0;\">" +
+                        "邮箱：<span style=\"color: #e74c3c; font-weight: bold;\">%s</span>" +
+                        "</p>" +
+                        "<p style=\"color: #666666; font-size: 15px; line-height: 1.8; margin: 0 0 10px 0;\">" +
+                        "收货地址：<span style=\"color: #e74c3c; font-weight: bold;\">%s</span>" +
+                        "</p>" +
+                        "<p style=\"color: #666666; font-size: 15px; line-height: 1.8; margin: 0;\">" +
+                        "订单号：<span style=\"color: #e74c3c; font-weight: bold;\">%s</span>" +
+                        "</p>" +
+                        "</div>" +
+                        "<div style=\"background: #f0f9ff; border-radius: 12px; padding: 20px 25px; margin: 20px 0;\">" +
+                        "<p style=\"color: #333333; font-size: 15px; font-weight: 600; margin: 0 0 8px 0;\">📌 发放方式</p>" +
+                        "<p style=\"color: #666666; font-size: 14px; line-height: 1.8; margin: 0;\">" +
+                        "请登录顾问后台：<span style=\"color: #e74c3c; font-weight: bold;\">/vip-admin.html</span>，" +
+                        "在「待确认兑换」列表中找到该订单，确认收款后点击「确认发放」完成积分扣减与商品发放。" +
+                        "</p>" +
+                        "</div>" +
+                        "</div>" +
+                        "<div style=\"padding: 20px; text-align: center; border-top: 1px solid #eeeeee;\">" +
+                        "<p style=\"color: #bbbbbb; font-size: 12px; margin: 0;\">" +
+                        "此邮件由 LoveOfUs 自动发送，请勿回复<br>" +
+                        "发送时间：%s" +
+                        "</p>" +
+                        "</div>" +
+                        "</div>",
+                nickname, productName, quantity == null ? 1 : quantity, amountYuan, totalPoints,
+                safePhone, safeEmail, safeReceiver, orderNo, time
+        );
+    }
+
+    /**
+     * 异步发送积分商品兑换成功邮件（发给兑换用户本人）
+     * <p>
+     * 由 {@link EmailNotificationService#sendPointExchangeSuccessEmail} 在用户开启邮箱通知时调用。
+     *
+     * @param to          收件人邮箱
+     * @param nickname    收件人昵称
+     * @param productName 商品名称（订单中记录的真实名称）
+     * @param quantity    兑换数量
+     * @param totalPoints 扣除积分
+     * @param amountYuan  付款金额（元）
+     * @param orderNo     订单号
+     */
+    @Async("verifyCodeExecutor")
+    public void sendPointExchangeSuccessMailAsync(String to, String nickname, String productName,
+                                                  Integer quantity, Integer totalPoints,
+                                                  BigDecimal amountYuan, String orderNo) {
+        long startTime = System.currentTimeMillis();
+        try {
+            MimeMessage mimeMessage = javaMailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
+            helper.setFrom(from, senderName);
+            helper.setTo(to);
+            helper.setSubject("【" + senderName + "】积分商品兑换成功 - " + productName);
+            helper.setText(buildPointExchangeSuccessContent(nickname, productName, quantity,
+                    totalPoints, amountYuan, orderNo), true);
+            javaMailSender.send(mimeMessage);
+            log.info("积分商品兑换成功邮件发送成功, 耗时{}ms, 收件人:{}, 订单号:{}",
+                    System.currentTimeMillis() - startTime, to, orderNo);
+        } catch (Exception e) {
+            log.error("积分商品兑换成功邮件发送失败, 耗时{}ms, 收件人:{}, 订单号:{}, 错误:{}",
+                    System.currentTimeMillis() - startTime, to, orderNo, e.getMessage());
+        }
+    }
+
+    /**
+     * 构建积分商品兑换成功邮件内容（HTML格式）
+     */
+    private String buildPointExchangeSuccessContent(String nickname, String productName, Integer quantity,
+                                                    Integer totalPoints, BigDecimal amountYuan, String orderNo) {
+        String time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        String amountText = amountYuan == null ? "0" : amountYuan.stripTrailingZeros().toPlainString();
+        return String.format(
+                "<div style=\"font-family: 'Microsoft YaHei', Arial, sans-serif; max-width: 600px; margin: 0 auto;\">" +
+                        "<div style=\"padding: 30px; text-align: center; border-bottom: 2px solid #e74c3c;\">" +
+                        "<h1 style=\"color: #e74c3c; margin: 0; font-size: 26px; font-weight: 600; letter-spacing: 2px;\">❤ LoveOfUs</h1>" +
+                        "<p style=\"color: #888888; margin: 10px 0 0 0; font-size: 14px;\">记录我们的每一刻</p>" +
+                        "</div>" +
+                        "<div style=\"padding: 40px 30px;\">" +
+                        "<p style=\"color: #333333; font-size: 16px; line-height: 1.8; margin: 0 0 20px 0;\">" +
+                        "<span style=\"color: #e74c3c; font-weight: bold;\">%s</span>，您好！" +
+                        "</p>" +
+                        "<div style=\"background: #fff5f5; border-radius: 12px; padding: 25px; margin: 20px 0; text-align: center;\">" +
+                        "<p style=\"font-size: 20px; color: #e74c3c; margin: 0 0 15px 0;\">🎁 积分商品兑换成功</p>" +
+                        "<p style=\"color: #666666; font-size: 15px; line-height: 1.8; margin: 0;\">" +
+                        "兑换商品：<strong style=\"color: #e74c3c;\">%s × %d</strong>" +
+                        "</p>" +
+                        "<p style=\"color: #666666; font-size: 15px; line-height: 1.8; margin: 10px 0 0 0;\">" +
+                        "扣除积分：<strong>%d 积分</strong><br>" +
+                        "付款金额：<strong>%s 元</strong>" +
+                        "</p>" +
+                        "<p style=\"color: #666666; font-size: 15px; line-height: 1.8; margin: 10px 0 0 0;\">" +
+                        "订单号：<strong>%s</strong><br>" +
+                        "确认时间：<strong>%s</strong>" +
+                        "</p>" +
+                        "</div>" +
+                        "<p style=\"color: #999999; font-size: 13px; margin: 20px 0;\">" +
+                        "商品将由专属顾问为您安排发放，请注意查收～" +
+                        "</p>" +
+                        "</div>" +
+                        "<div style=\"padding: 20px; text-align: center; border-top: 1px solid #eeeeee;\">" +
+                        "<p style=\"color: #bbbbbb; font-size: 12px; margin: 0;\">" +
+                        "此邮件由 LoveOfUs 自动发送，请勿回复<br>" +
+                        "发送时间：%s" +
+                        "</p>" +
+                        "</div>" +
+                        "</div>",
+                nickname, productName, quantity == null ? 1 : quantity,
+                totalPoints == null ? 0 : totalPoints, amountText, orderNo, time, time
+        );
     }
 
     /**
@@ -139,6 +344,74 @@ public class AsyncMailService {
         }
     }
 
+    /**
+     * 异步发送卡类价格调整通知邮件
+     * <p>
+     * 仅在用户勾选“邮箱通知”时由 {@link EmailNotificationService} 调用。
+     *
+     * @param to       收件人邮箱
+     * @param nickname 收件人昵称
+     * @param content  价格变更内容（与系统通知文案一致）
+     */
+    @Async("verifyCodeExecutor")
+    public void sendCardPriceChangedMailAsync(String to, String nickname, String content) {
+        long startTime = System.currentTimeMillis();
+        try {
+            MimeMessage mimeMessage = javaMailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
+            helper.setFrom(from, senderName);
+            helper.setTo(to);
+            helper.setSubject("【" + senderName + "】卡类价格调整通知");
+            helper.setText(buildPriceChangeContent(nickname, content), true);
+            javaMailSender.send(mimeMessage);
+            log.info("卡类价格调整邮件发送成功, 耗时{}ms, 收件人:{}", System.currentTimeMillis() - startTime, to);
+        } catch (Exception e) {
+            log.error("卡类价格调整邮件发送失败, 耗时{}ms, 收件人:{}, 错误:{}", System.currentTimeMillis() - startTime, to, e.getMessage());
+        }
+    }
+
+    /**
+     * 构建卡类价格调整邮件内容（HTML格式）
+     *
+     * @param nickname 收件人昵称
+     * @param content  价格变更内容（纯文本，换行按 HTML 渲染）
+     */
+    private String buildPriceChangeContent(String nickname, String content) {
+        String time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        String bodyHtml = content == null ? "" : content.replace("\n", "<br>");
+        return String.format(
+                "<div style=\"font-family: 'Microsoft YaHei', Arial, sans-serif; max-width: 600px; margin: 0 auto;\">" +
+                        "<div style=\"padding: 30px; text-align: center; border-bottom: 2px solid #e74c3c;\">" +
+                        "<h1 style=\"color: #e74c3c; margin: 0; font-size: 26px; font-weight: 600; letter-spacing: 2px;\">❤ LoveOfUs</h1>" +
+                        "<p style=\"color: #888888; margin: 10px 0 0 0; font-size: 14px;\">记录我们的每一刻</p>" +
+                        "</div>" +
+                        "<div style=\"padding: 40px 30px;\">" +
+                        "<h2 style=\"color: #333333; margin: 0 0 20px 0; font-size: 20px; font-weight: 600; border-left: 4px solid #e74c3c; padding-left: 12px;\">卡类价格调整通知</h2>" +
+                        "<p style=\"color: #333333; font-size: 16px; line-height: 1.8; margin: 0 0 20px 0;\">" +
+                        "<span style=\"color: #e74c3c; font-weight: bold;\">%s</span>，您好！" +
+                        "</p>" +
+                        "<div style=\"background: #fff5f5; border-radius: 12px; padding: 25px; margin: 20px 0;\">" +
+                        "<p style=\"color: #666666; font-size: 15px; line-height: 1.8; margin: 0;\">%s</p>" +
+                        "</div>" +
+                        "<p style=\"color: #999999; font-size: 13px; margin: 20px 0;\">" +
+                        "新价格已在 App 开卡页生效，具体以开卡页展示为准。" +
+                        "</p>" +
+                        "<div style=\"background: #f9f9f9; border: 1px solid #eeeeee; border-radius: 8px; padding: 15px; margin: 20px 0;\">" +
+                        "<p style=\"color: #888888; font-size: 13px; margin: 0;\">" +
+                        "💡 如需关闭此类邮件，请在 App「我的 - 消息通知设置」中关闭「邮箱通知」。" +
+                        "</p>" +
+                        "</div>" +
+                        "</div>" +
+                        "<div style=\"padding: 20px; text-align: center; border-top: 1px solid #eeeeee;\">" +
+                        "<p style=\"color: #bbbbbb; font-size: 12px; margin: 0;\">" +
+                        "此邮件由 LoveOfUs 自动发送，请勿回复<br>" +
+                        "发送时间：%s" +
+                        "</p>" +
+                        "</div>" +
+                        "</div>",
+                nickname, bodyHtml, time
+        );
+    }
     /**
      * 构建系统通知邮件内容（HTML格式）
      */
@@ -261,10 +534,14 @@ public class AsyncMailService {
 
     /**
      * 构建 VIP 下单通知邮件内容（HTML格式）
+     * <p>
+     * 顾问确认收款后登录后台 vip-admin.html 完成开通，邮件内不再附带 curl 命令。
      */
-    private String buildVipOrderContent(String nickname, String tierName, Integer priceYuan,
-                                        String orderNo, String activateCommand) {
+    private String buildVipOrderContent(String nickname, String phone, String email,
+                                        String tierName, BigDecimal priceYuan, String orderNo) {
         String time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        String safePhone = phone == null ? "-" : phone;
+        String safeEmail = email == null ? "-" : email;
         return String.format(
                 "<div style=\"font-family: 'Microsoft YaHei', Arial, sans-serif; max-width: 600px; margin: 0 auto;\">" +
                         "<div style=\"padding: 30px; text-align: center; border-bottom: 2px solid #e74c3c;\">" +
@@ -278,14 +555,25 @@ public class AsyncMailService {
                         "用户：<span style=\"color: #e74c3c; font-weight: bold;\">%s</span>，正在开通 VIP 服务" +
                         "</p>" +
                         "<p style=\"color: #666666; font-size: 15px; line-height: 1.8; margin: 0 0 10px 0;\">" +
-                        "等级：<span style=\"color: #e74c3c; font-weight: bold;\">%s</span>（%d 元）" +
+                        "等级：<span style=\"color: #e74c3c; font-weight: bold;\">%s</span>（%s 元）" +
+                        "</p>" +
+                        "<p style=\"color: #666666; font-size: 15px; line-height: 1.8; margin: 0 0 10px 0;\">" +
+                        "手机号：<span style=\"color: #e74c3c; font-weight: bold;\">%s</span>" +
+                        "</p>" +
+                        "<p style=\"color: #666666; font-size: 15px; line-height: 1.8; margin: 0 0 10px 0;\">" +
+                        "邮箱：<span style=\"color: #e74c3c; font-weight: bold;\">%s</span>" +
                         "</p>" +
                         "<p style=\"color: #666666; font-size: 15px; line-height: 1.8; margin: 0;\">" +
                         "订单号：<span style=\"color: #e74c3c; font-weight: bold;\">%s</span>" +
                         "</p>" +
                         "</div>" +
-                        "<p style=\"color: #333333; font-size: 15px; font-weight: 600; margin: 24px 0 8px 0;\">开通命令（确认收款后执行）</p>" +
-                        "<pre style=\"background: #2d2d2d; color: #f8f8f2; border-radius: 8px; padding: 15px; margin: 0; font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-all;\">%s</pre>" +
+                        "<div style=\"background: #f0f9ff; border-radius: 12px; padding: 20px 25px; margin: 20px 0;\">" +
+                        "<p style=\"color: #333333; font-size: 15px; font-weight: 600; margin: 0 0 8px 0;\">📌 开通方式</p>" +
+                        "<p style=\"color: #666666; font-size: 14px; line-height: 1.8; margin: 0;\">" +
+                        "请登录顾问后台：<span style=\"color: #e74c3c; font-weight: bold;\">/vip-admin.html</span>，" +
+                        "在「待开通订单」列表中找到该订单并点击「开通」按钮完成开通。" +
+                        "</p>" +
+                        "</div>" +
                         "</div>" +
                         "<div style=\"padding: 20px; text-align: center; border-top: 1px solid #eeeeee;\">" +
                         "<p style=\"color: #bbbbbb; font-size: 12px; margin: 0;\">" +
@@ -294,7 +582,59 @@ public class AsyncMailService {
                         "</p>" +
                         "</div>" +
                         "</div>",
-                nickname, tierName, priceYuan, orderNo, activateCommand, time
+                nickname, tierName, priceYuan, safePhone, safeEmail, orderNo, time
+        );
+    }
+
+    /**
+     * 构建次卡开通申请邮件内容（HTML）
+     */
+    private String buildQuotaOrderContent(String nickname, String phone, String email,
+                                          String quotaTypeName, Integer quotaCount, BigDecimal priceYuan, String orderNo) {
+        String time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        String safePhone = phone == null ? "-" : phone;
+        String safeEmail = email == null ? "-" : email;
+        return String.format(
+                "<div style=\"font-family: 'Microsoft YaHei', Arial, sans-serif; max-width: 600px; margin: 0 auto;\">" +
+                        "<div style=\"padding: 30px; text-align: center; border-bottom: 2px solid #e74c3c;\">" +
+                        "<h1 style=\"color: #e74c3c; margin: 0; font-size: 26px; font-weight: 600; letter-spacing: 2px;\">❤ LoveOfUs</h1>" +
+                        "<p style=\"color: #888888; margin: 10px 0 0 0; font-size: 14px;\">记录我们的每一刻</p>" +
+                        "</div>" +
+                        "<div style=\"padding: 40px 30px;\">" +
+                        "<h2 style=\"color: #333333; margin: 0 0 20px 0; font-size: 20px; font-weight: 600; border-left: 4px solid #e74c3c; padding-left: 12px;\">次卡开通申请</h2>" +
+                        "<div style=\"background: #fff5f5; border-radius: 12px; padding: 25px; margin: 20px 0;\">" +
+                        "<p style=\"color: #666666; font-size: 15px; line-height: 1.8; margin: 0 0 10px 0;\">" +
+                        "用户：<span style=\"color: #e74c3c; font-weight: bold;\">%s</span>" +
+                        "</p>" +
+                        "<p style=\"color: #666666; font-size: 15px; line-height: 1.8; margin: 0 0 10px 0;\">" +
+                        "类型：<span style=\"color: #e74c3c; font-weight: bold;\">%s + %d 次</span>（%s 元）" +
+                        "</p>" +
+                        "<p style=\"color: #666666; font-size: 15px; line-height: 1.8; margin: 0 0 10px 0;\">" +
+                        "手机号：<span style=\"color: #e74c3c; font-weight: bold;\">%s</span>" +
+                        "</p>" +
+                        "<p style=\"color: #666666; font-size: 15px; line-height: 1.8; margin: 0 0 10px 0;\">" +
+                        "邮箱：<span style=\"color: #e74c3c; font-weight: bold;\">%s</span>" +
+                        "</p>" +
+                        "<p style=\"color: #666666; font-size: 15px; line-height: 1.8; margin: 0;\">" +
+                        "订单号：<span style=\"color: #e74c3c; font-weight: bold;\">%s</span>" +
+                        "</p>" +
+                        "</div>" +
+                        "<div style=\"background: #f0f9ff; border-radius: 12px; padding: 20px 25px; margin: 20px 0;\">" +
+                        "<p style=\"color: #333333; font-size: 15px; font-weight: 600; margin: 0 0 8px 0;\">📌 开通方式</p>" +
+                        "<p style=\"color: #666666; font-size: 14px; line-height: 1.8; margin: 0;\">" +
+                        "请登录顾问后台：<span style=\"color: #e74c3c; font-weight: bold;\">/vip-admin.html</span>，" +
+                        "在「待开通订单」列表中找到该订单并点击「开通」按钮完成开通，开通后用户将立即收到对应次数。" +
+                        "</p>" +
+                        "</div>" +
+                        "</div>" +
+                        "<div style=\"padding: 20px; text-align: center; border-top: 1px solid #eeeeee;\">" +
+                        "<p style=\"color: #bbbbbb; font-size: 12px; margin: 0;\">" +
+                        "此邮件由 LoveOfUs 自动发送，请勿回复<br>" +
+                        "发送时间：%s" +
+                        "</p>" +
+                        "</div>" +
+                        "</div>",
+                nickname, quotaTypeName, quotaCount, priceYuan, safePhone, safeEmail, orderNo, time
         );
     }
 

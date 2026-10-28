@@ -1,8 +1,11 @@
 package com.example.lovemap.service;
 
+import com.example.lovemap.common.PageResult;
 import com.example.lovemap.common.Result;
 import com.example.lovemap.model.dto.VipOrderDTO;
+import com.example.lovemap.model.dto.VipOrderHistoryQueryDTO;
 import com.example.lovemap.model.entity.User;
+import com.example.lovemap.model.vo.VipOrderHistoryVO;
 import com.example.lovemap.model.vo.VipOrderVO;
 import com.example.lovemap.model.vo.VipPendingOrderVO;
 import com.example.lovemap.model.vo.VipTierVO;
@@ -26,9 +29,25 @@ public interface VipService {
     Result<List<VipPendingOrderVO>> listPendingOrders();
 
     /**
+     * 查询订单历史（顾问侧，全状态，多条件分页）
+     *
+     * @param query 查询条件
+     */
+    Result<PageResult<VipOrderHistoryVO>> listOrdersHistory(VipOrderHistoryQueryDTO query);
+
+    /**
      * 提交 VIP 下单：仅登记待开通订单，由顾问收款后手动开通
      */
-    Result<VipOrderVO> createOrder(Integer userId, VipOrderDTO dto);
+    /**
+     * 提交 VIP 下单。
+     * <p>
+     * 返回 data 可能为：
+     * <ul>
+     *   <li>{@link VipOrderVO}：下单成功</li>
+     *   <li>{@link java.util.Map}：code=409 时返回的旧订单摘要（orderNo/vipLevel/vipLevelName/priceYuan/createdAt）</li>
+     * </ul>
+     */
+    Result<Object> createOrder(Integer userId, VipOrderDTO dto);
 
     /**
      * 查询账单：本人与同组（情侣）的全部订单，下单时间倒序
@@ -54,6 +73,11 @@ public interface VipService {
      * 校验顾问开通密钥；未配置密钥时一律拒绝，避免开通接口被越权调用
      */
     boolean isValidAdminToken(String token);
+
+    /**
+     * 查询当前用户的配额快照（AI 约会/心愿/导出），用于前端在推荐按钮旁展示剩余次数
+     */
+    com.example.lovemap.model.vo.VipQuotaVO currentQuotas(Integer userId);
 
     /**
      * 解析用户当前生效的 VIP

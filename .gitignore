@@ -91,3 +91,20 @@ LoveMap/cp.txt
 *.class
 # 部署备份
 backups/
+
+# ==================== 本地调试 / 一次性脚本产物 ====================
+# 含明文数据库口令的一次性脚本
+fix-vip-pricing.ps1
+LoveMap/db/_run.bat
+# 本地调试残留
+raw.bin
+raw.bin.check.py
+preview.err
+preview.out
+LoveMap/db/_out.txt
+LoveMap/db/_tmp_check2.sql
+loveofus-frontend/memory-gallery-check.*
+landing/_test_script.js
+# 数据库初始化备份
+deploy/mysql/init/*.bak
+deploy/mysql/init/*.bak.*

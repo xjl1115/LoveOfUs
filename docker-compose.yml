@@ -64,8 +64,8 @@ services:
       OSS_ENDPOINT: ${OSS_ENDPOINT:-oss-cn-beijing.aliyuncs.com}
       OSS_BUCKET: ${OSS_BUCKET:-allenxjl}
       OSS_REGION: ${OSS_REGION:-cn-beijing}
-      ALIBABA_CLOUD_ACCESS_KEY_ID: ${OSS_ACCESS_KEY_ID:?请在 .env 配置 OSS_ACCESS_KEY_ID}
-      ALIBABA_CLOUD_ACCESS_KEY_SECRET: ${OSS_ACCESS_KEY_SECRET:?请在 .env 配置 OSS_ACCESS_KEY_SECRET}
+      OSS_ACCESS_KEY_ID: ${OSS_ACCESS_KEY_ID:?请在 .env 配置 OSS_ACCESS_KEY_ID}
+      OSS_ACCESS_KEY_SECRET: ${OSS_ACCESS_KEY_SECRET:?请在 .env 配置 OSS_ACCESS_KEY_SECRET}
       # 邮件 SMTP（可选）
       MAIL_HOST: ${MAIL_HOST:-smtp.qq.com}
       MAIL_PORT: ${MAIL_PORT:-465}
@@ -79,9 +79,17 @@ services:
       VIP_ADMIN_TOKEN: ${VIP_ADMIN_TOKEN:?请在 .env 配置 VIP_ADMIN_TOKEN}
       # VIP 顾问开通接口对外地址（末尾不带 /），用于生成顾问通知邮件里的开通命令
       VIP_PUBLIC_BASE_URL: ${VIP_PUBLIC_BASE_URL:-http://localhost:8080}
+      # VIP 顾问收件邮箱（开通申请通知邮件收件人）
+      VIP_ADVISOR_EMAIL: ${VIP_ADVISOR_EMAIL:-xjl20041115@126.com}
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     volumes:
       - uploads-data:/app/uploads            # file.storage=local 的上传文件
       - exports-data:/app/loveofus/exports   # 导出文件
+      - logs-data:/app/logs
 
   frontend:
     build: ./loveofus-frontend
@@ -98,3 +106,4 @@ volumes:
   redis-data:
   uploads-data:
   exports-data:
+  logs-data:

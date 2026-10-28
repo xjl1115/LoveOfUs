@@ -66,6 +66,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             "/api/error",
             // VIP 顾问开通接口：无 JWT，由 VipController 校验 X-Vip-Admin-Token
             "/api/vip/admin/**",
+            "/api/admin/points/**",
             // WebSocket 握手鉴权由 ChatHandshakeInterceptor 自行处理
             "/api/ws/**"
     );
@@ -143,7 +144,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
      * 写入 401 JSON 响应
      */
     private void writeUnauthorizedResponse(HttpServletResponse response, String message) throws IOException {
-        // 响应已提交（例如 Controller 已经写出文件流），无法再写错误体，直接返回
+        // 响应已提交（例如 Controller 已经写出文件流），直接返回
         if (response.isCommitted()) {
             return;
         }

@@ -185,7 +185,7 @@ public class LangChain4jConfig {
     @Value("${ai.dashscope.image-edit.api-key:}")
     private String imageEditApiKey;
 
-    @Value("${ai.dashscope.image-edit.model-name:wanx2.1-imageedit}")
+    @Value("${ai.dashscope.image-edit.model-name:wan2.6-image}")
     private String imageEditModelName;
 
     @Value("${ai.dashscope.image-edit.ref-mode:REPAINT}")

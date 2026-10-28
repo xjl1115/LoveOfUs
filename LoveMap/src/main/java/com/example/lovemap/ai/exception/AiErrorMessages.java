@@ -21,7 +21,6 @@ public final class AiErrorMessages {
             "FreeTierOnly",
             "Free quota exhausted",
             "free tier",
-            "quota",
             "Arrearage",
             "欠费"
     };

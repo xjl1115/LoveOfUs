@@ -128,13 +128,26 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Result<Void> markAsRead(Integer userId, Integer notificationId) {
+        // 先清理该用户的未读缓存，便于识别数据库中已不存在或已读的过期缓存记录
+        boolean removedFromUnreadCache = removeFromCache(
+                NotificationConstant.NOTIFICATION_UNREAD_PREFIX + userId, notificationId);
         int affected = notificationMapper.markAsRead(notificationId, userId);
         if (affected == 0) {
+            Notification existing = notificationMapper.selectByIdAndUserId(notificationId, userId);
+            boolean alreadyRead = existing != null && Integer.valueOf(1).equals(existing.getIsRead());
+            if (removedFromUnreadCache || alreadyRead) {
+                if (alreadyRead) {
+                    removeFromCache(NotificationConstant.NOTIFICATION_READ_PREFIX + userId, notificationId);
+                    addToReadCache(userId, convertToVO(existing));
+                }
+                // 数据库结果才是权威数据，重新同步未读数，清理过期缓存造成的偏差
+                long unreadCount = notificationMapper.countUnreadByUserId(userId);
+                putUnreadCountToCache(userId, unreadCount);
+                pushUnreadCountSSE(userId);
+                return Result.success(null);
+            }
             return Result.error(ResultCode.NOT_FOUND, "通知不存在或无权操作");
         }
-
-        // 从 key1（未读缓存）中删除该消息
-        removeFromCache(NotificationConstant.NOTIFICATION_UNREAD_PREFIX + userId, notificationId);
 
         // 将该消息（标记为已读）存入 key2（已读缓存）
         Notification notification = notificationMapper.selectByIdAndUserId(notificationId, userId);
@@ -422,12 +435,16 @@ public class NotificationServiceImpl implements NotificationService {
     /**
      * 从缓存中按通知ID删除消息
      */
-    private void removeFromCache(String key, Integer notificationId) {
+    private boolean removeFromCache(String key, Integer notificationId) {
         List<NotificationVO> cachedList = getFromCache(key);
         if (cachedList != null) {
-            cachedList.removeIf(vo -> vo.getId().equals(notificationId));
-            putToCache(key, cachedList);
+            boolean removed = cachedList.removeIf(vo -> vo.getId().equals(notificationId));
+            if (removed) {
+                putToCache(key, cachedList);
+            }
+            return removed;
         }
+        return false;
     }
 
     /**

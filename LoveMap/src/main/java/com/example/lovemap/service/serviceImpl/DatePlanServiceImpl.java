@@ -4,6 +4,8 @@ import com.example.lovemap.ai.service.AiRecommendService;
 import com.example.lovemap.common.Result;
 import com.example.lovemap.common.ResultCode;
 import com.example.lovemap.common.constant.DatePlanConstant;
+import com.example.lovemap.common.constant.PointsConstant;
+import com.example.lovemap.common.constant.QuotaType;
 import com.example.lovemap.mapper.DatePlanMapper;
 import com.example.lovemap.mapper.UserMapper;
 import com.example.lovemap.model.dto.AiRecommendRequestDTO;
@@ -15,6 +17,8 @@ import com.example.lovemap.model.entity.User;
 import com.example.lovemap.model.vo.AiRecommendVO;
 import com.example.lovemap.model.vo.DatePlanVO;
 import com.example.lovemap.service.DatePlanService;
+import com.example.lovemap.service.QuotaService;
+import com.example.lovemap.service.UserTaskTriggerService;
 import com.example.lovemap.utils.FileTypeUtils;
 import com.example.lovemap.utils.storage.FileStorage;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -44,6 +48,8 @@ public class DatePlanServiceImpl implements DatePlanService {
     private final AiRecommendService aiRecommendService;
     private final ObjectMapper objectMapper;
     private final FileStorage fileStorage;
+    private final QuotaService quotaService;
+    private final UserTaskTriggerService userTaskTriggerService;
 
     @Override
     public Result<List<DatePlanVO>> listDatePlans(Integer userId) {
@@ -81,6 +87,10 @@ public class DatePlanServiceImpl implements DatePlanService {
 
             datePlanMapper.insert(plan);
             log.info("用户 {} 创建约会计划成功, planId: {}", userId, plan.getId());
+
+            // 创建成功 → 系统自动识别「新建约会计划」类情侣任务（失败不影响创建）
+            userTaskTriggerService.onEvent(userId, PointsConstant.COMPLETE_DATE_PLAN);
+
             return Result.success(convertToVO(plan));
         });
     }
@@ -194,6 +204,8 @@ public class DatePlanServiceImpl implements DatePlanService {
         if (user == null) {
             return Result.error(ResultCode.NOT_FOUND, "用户不存在");
         }
+        // 配额消费：AI 推荐 - 约会（每周基础+VIP加成）
+        quotaService.consume(user, QuotaType.AI_RECOMMEND);
         String content = aiRecommendService.recommendDatePlan(dto.getPrompt());
         AiRecommendVO vo = new AiRecommendVO();
         vo.setContent(content);

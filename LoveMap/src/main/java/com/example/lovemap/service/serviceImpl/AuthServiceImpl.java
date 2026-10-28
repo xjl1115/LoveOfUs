@@ -574,6 +574,58 @@ public class AuthServiceImpl implements AuthService {
         return Result.success("密码重置成功", null);
     }
 
+    /**
+     * 修改密码（已登录用户通过旧密码改密）
+     */
+    @Override
+    public Result<Void> changePassword(Integer userId, PasswordChangeDTO dto) {
+        String oldPassword = dto.getOldPassword();
+        String newPassword = dto.getNewPassword();
+        String confirmPassword = dto.getConfirmPassword();
+
+        // 1. 参数校验
+        if (!StringUtils.hasText(oldPassword)) {
+            return Result.badRequest("当前密码不能为空");
+        }
+        if (!StringUtils.hasText(newPassword)) {
+            return Result.badRequest("新密码不能为空");
+        }
+        if (!StringUtils.hasText(confirmPassword)) {
+            return Result.badRequest("确认密码不能为空");
+        }
+        if (!newPassword.equals(confirmPassword)) {
+            return Result.error(ResultCode.UNPROCESSABLE_ENTITY, "两次输入的新密码不一致");
+        }
+        if (newPassword.length() < 6 || newPassword.length() > 20) {
+            return Result.error(ResultCode.UNPROCESSABLE_ENTITY, "新密码长度需在6-20位之间");
+        }
+        if (newPassword.equals(oldPassword)) {
+            return Result.badRequest("新密码不能与当前密码相同");
+        }
+
+        // 2. 查询用户
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            return Result.error(ResultCode.NOT_FOUND, "用户不存在");
+        }
+
+        // 3. 校验旧密码
+        if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
+            return Result.error(ResultCode.UNAUTHORIZED, "当前密码错误");
+        }
+
+        // 4. 更新密码
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userMapper.updatePassword(user);
+
+        // 5. 清除该用户的登录 Session，强制重新登录
+        String sessionKey = CaptchaConstant.USER_LOGIN_SESSION_PREFIX + user.getNickname();
+        redisTemplate.delete(sessionKey);
+
+        log.info("密码修改成功, userId:{}", userId);
+        return Result.success("密码修改成功", null);
+    }
+
 
     /**
      * 生成绑定码

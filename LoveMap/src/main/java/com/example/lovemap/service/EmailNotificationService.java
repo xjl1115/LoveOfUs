@@ -1,5 +1,6 @@
 package com.example.lovemap.service;
 
+import com.example.lovemap.common.ServiceHelper;
 import com.example.lovemap.common.constant.UserConstant;
 import com.example.lovemap.mapper.UserMapper;
 import com.example.lovemap.model.entity.User;
@@ -10,6 +11,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
 
 /**
  * 邮件通知服务
@@ -196,6 +199,88 @@ public class EmailNotificationService {
             log.info("已向用户发送 VIP 开通邮件, userId: {}, tier: {}", userId, tierName);
         } catch (Exception e) {
             log.error("发送 VIP 开通邮件失败, userId: {}, tier: {}", userId, tierName, e);
+        }
+    }
+
+    /**
+     * 异步发送积分商品兑换成功邮件
+     * <p>
+     * 与 VIP 开通邮件一致：仅在用户未关闭「邮箱通知」且已绑定邮箱时发送。
+     *
+     * @param userId      收件用户ID
+     * @param productName 商品名称
+     * @param quantity    兑换数量
+     * @param totalPoints 扣除积分
+     * @param priceAmount 付款金额（元）
+     * @param orderNo     订单号
+     */
+    @Async("notificationExecutor")
+    public void sendPointExchangeSuccessEmail(Integer userId, String productName, Integer quantity,
+                                              Integer totalPoints, BigDecimal priceAmount, String orderNo) {
+        try {
+            User user = userMapper.selectById(userId);
+            if (user == null) {
+                log.warn("发送积分兑换成功邮件失败：用户不存在, userId: {}", userId);
+                return;
+            }
+
+            // 查询用户的邮箱通知开关
+            NotificationSettingsVO settings = ServiceHelper.getFromCache(redisTemplate, objectMapper,
+                    UserConstant.USER_NOTIFICATION_SETTINGS + userId, NotificationSettingsVO.class);
+            if (settings != null && settings.getEmail() != null && !settings.getEmail()) {
+                log.debug("用户未开启邮箱通知，跳过积分兑换成功邮件, userId: {}", userId);
+                return;
+            }
+
+            if (user.getEmail() == null || user.getEmail().isEmpty()) {
+                log.warn("用户邮箱为空，跳过积分兑换成功邮件, userId: {}", userId);
+                return;
+            }
+
+            String nickname = user.getNickname() != null ? user.getNickname() : "用户";
+            asyncMailService.sendPointExchangeSuccessMailAsync(user.getEmail(), nickname, productName,
+                    quantity, totalPoints, priceAmount, orderNo);
+            log.info("已向用户发送积分兑换成功邮件, userId: {}, orderNo: {}", userId, orderNo);
+        } catch (Exception e) {
+            log.error("发送积分兑换成功邮件失败, userId: {}, orderNo: {}", userId, orderNo, e);
+        }
+    }
+
+    /**
+     * 异步发送卡类价格调整邮件
+     * <p>
+     * 仅在用户于“消息通知设置”中勾选“邮箱通知”时发送；未勾选或未设置（默认关闭）一律跳过。
+     *
+     * @param userId  收件用户ID
+     * @param content 价格变更内容（与系统通知文案一致）
+     */
+    @Async("notificationExecutor")
+    public void sendCardPriceChangedEmail(Integer userId, String content) {
+        try {
+            User user = userMapper.selectById(userId);
+            if (user == null) {
+                log.warn("发送卡类价格调整邮件失败：用户不存在, userId: {}", userId);
+                return;
+            }
+
+            // 用户必须主动勾选“邮箱通知”，未勾选（含缓存过期后的默认值）不发送
+            NotificationSettingsVO settings = ServiceHelper.getFromCache(redisTemplate, objectMapper,
+                    UserConstant.USER_NOTIFICATION_SETTINGS + userId, NotificationSettingsVO.class);
+            if (settings == null || !Boolean.TRUE.equals(settings.getEmail())) {
+                log.debug("用户未勾选邮箱通知，跳过卡类价格调整邮件, userId: {}", userId);
+                return;
+            }
+
+            if (user.getEmail() == null || user.getEmail().isEmpty()) {
+                log.warn("用户邮箱为空，跳过卡类价格调整邮件, userId: {}", userId);
+                return;
+            }
+
+            String nickname = user.getNickname() != null ? user.getNickname() : "用户";
+            asyncMailService.sendCardPriceChangedMailAsync(user.getEmail(), nickname, content);
+            log.info("已向用户发送卡类价格调整邮件, userId: {}", userId);
+        } catch (Exception e) {
+            log.error("发送卡类价格调整邮件失败, userId: {}", userId, e);
         }
     }
 }

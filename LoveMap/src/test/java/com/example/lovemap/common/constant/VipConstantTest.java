@@ -35,4 +35,30 @@ class VipConstantTest {
         assertEquals("AI 化妆建议 12 次/月", VipConstant.makeoverQuotaText(VipConstant.LEVEL_QUARTER, FREE));
         assertEquals("AI 化妆建议不限次", VipConstant.makeoverQuotaText(VipConstant.LEVEL_FOREVER, FREE));
     }
+
+    @Test
+    void tierProductCode_mapsLevelToCode() {
+        assertEquals(VipConstant.PRODUCT_CODE_VIP_WEEK,
+                VipConstant.findTier(VipConstant.LEVEL_WEEK).productCode());
+        assertEquals(VipConstant.PRODUCT_CODE_VIP_MONTH,
+                VipConstant.findTier(VipConstant.LEVEL_MONTH).productCode());
+        assertEquals(VipConstant.PRODUCT_CODE_VIP_QUARTER,
+                VipConstant.findTier(VipConstant.LEVEL_QUARTER).productCode());
+        assertEquals(VipConstant.PRODUCT_CODE_VIP_YEAR,
+                VipConstant.findTier(VipConstant.LEVEL_YEAR).productCode());
+        assertEquals(VipConstant.PRODUCT_CODE_VIP_FOREVER,
+                VipConstant.findTier(VipConstant.LEVEL_FOREVER).productCode());
+    }
+
+    @Test
+    void quotaProductCode_perProduct() {
+        assertEquals(VipConstant.PRODUCT_CODE_QUOTA_MAKEOVER,
+                VipConstant.quotaProductCode(VipConstant.QUOTA_PRODUCT_MAKEOVER));
+        assertEquals(VipConstant.PRODUCT_CODE_QUOTA_DATE_PLAN,
+                VipConstant.quotaProductCode(VipConstant.QUOTA_PRODUCT_DATE_PLAN));
+        assertEquals(VipConstant.PRODUCT_CODE_QUOTA_WISHLIST,
+                VipConstant.quotaProductCode(VipConstant.QUOTA_PRODUCT_WISHLIST));
+        assertNull(VipConstant.quotaProductCode(null));
+        assertNull(VipConstant.quotaProductCode(99));
+    }
 }

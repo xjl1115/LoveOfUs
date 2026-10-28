@@ -3,16 +3,22 @@ package com.example.lovemap.controller;
 import com.example.lovemap.chat.ChatSessionRegistry;
 import com.example.lovemap.common.PageResult;
 import com.example.lovemap.common.Result;
+import com.example.lovemap.common.ResultCode;
 import com.example.lovemap.mapper.UserMapper;
 import com.example.lovemap.model.dto.ChatPresenceDTO;
 import com.example.lovemap.model.entity.User;
+import com.example.lovemap.model.vo.ChatAttachmentVO;
 import com.example.lovemap.model.vo.ChatMessageVO;
 import com.example.lovemap.service.ChatService;
+import com.example.lovemap.utils.AliyunOSSUtils;
+import com.example.lovemap.utils.FileTypeUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,21 +27,28 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * 聊天 REST 控制器（仅历史消息/未读数/标记已读，实时收发走 WebSocket）
  */
+@Slf4j
 @RestController
 @RequestMapping("/chat")
 @RequiredArgsConstructor
 @Tag(name = "聊天模块", description = "伴侣 1 对 1 聊天接口")
 public class ChatController {
 
+    /** 单个聊天附件大小上限（图片/文件通用，与 nginx 请求体上限对齐） */
+    private static final long MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024;
+
     private final ChatService chatService;
     private final UserMapper userMapper;
     private final ChatSessionRegistry chatSessionRegistry;
+    private final AliyunOSSUtils aliyunOSSUtils;
 
     @GetMapping("/history")
     @Operation(summary = "聊天历史消息", description = "分页查询与伴侣的历史聊天消息（按时间正序）")
@@ -117,6 +130,41 @@ public class ChatController {
     @Operation(summary = "清空本地聊天记录", description = "仅清空本人视图，伴侣仍可看到所有消息")
     public Result<Integer> clearLocalHistory(@RequestAttribute("userId") Integer userId) {
         return chatService.clearLocalHistory(userId);
+    }
+
+    @PostMapping(value = "/attachment", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "上传聊天附件", description = "输入框 + 号上传图片/文件，返回可直接访问的 URL（消息发送仍走 WebSocket）")
+    public Result<ChatAttachmentVO> uploadAttachment(@RequestAttribute("userId") Integer userId,
+                                                     @RequestParam("file") MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            return Result.badRequest("上传文件不能为空");
+        }
+        if (file.getSize() > MAX_ATTACHMENT_SIZE) {
+            return Result.badRequest("附件大小不能超过 20MB");
+        }
+
+        String originalName = file.getOriginalFilename();
+        String extension = FileTypeUtils.getFileExtension(originalName);
+        if (extension == null || extension.isEmpty()) {
+            extension = "bin";
+        }
+        String objectKey = String.format("LoveMap/chat/%d/%s.%s",
+                userId, UUID.randomUUID().toString().replace("-", ""), extension);
+
+        String url;
+        try {
+            url = aliyunOSSUtils.asyncUploadFile(file, objectKey);
+        } catch (Exception e) {
+            log.error("聊天附件上传失败, userId: {}, fileName: {}", userId, originalName, e);
+            return Result.error(ResultCode.INTERNAL_SERVER_ERROR, "附件上传失败");
+        }
+
+        ChatAttachmentVO vo = new ChatAttachmentVO();
+        vo.setUrl(url);
+        vo.setFileName(originalName == null || originalName.isBlank() ? "附件" : originalName);
+        vo.setFileSize(file.getSize());
+        vo.setContentType(file.getContentType());
+        return Result.success(vo);
     }
 
     @Setter

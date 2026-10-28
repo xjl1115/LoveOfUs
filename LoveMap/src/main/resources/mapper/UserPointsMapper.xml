@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.lovemap.mapper.UserPointsMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.lovemap.model.entity.UserPoints">
+        <id column="user_id" property="userId"/>
+        <result column="points" property="points"/>
+        <result column="total_points" property="totalPoints"/>
+        <result column="continuous_days" property="continuousDays"/>
+        <result column="total_check_in_days" property="totalCheckInDays"/>
+        <result column="last_check_in_at" property="lastCheckInAt"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="selectByUserId" resultMap="BaseResultMap">
+        SELECT user_id, points, total_points, continuous_days, total_check_in_days,
+               last_check_in_at, created_at, updated_at
+        FROM user_points
+        WHERE user_id = #{userId}
+        LIMIT 1
+    </select>
+
+    <insert id="insertIgnore">
+        INSERT IGNORE INTO user_points (user_id, points, total_points, continuous_days, total_check_in_days)
+        VALUES (#{userId}, 0, 0, 0, 0)
+    </insert>
+
+    <!--
+      签到用：原子累加积分、连续天数、累计天数、写最后签到日期
+      连续天数与累计天数由调用方算出后整段覆盖
+    -->
+    <update id="incrPoints">
+        UPDATE user_points
+        SET points           = points + #{delta},
+            total_points     = total_points + #{delta},
+            continuous_days  = #{continuousDays},
+            total_check_in_days = #{totalCheckInDays},
+            last_check_in_at = #{lastCheckInAt}
+        WHERE user_id = #{userId}
+    </update>
+
+    <!--
+      兑换扣减：仅当余额足够才扣减成功；受影响 0 = 余额不足
+    -->
+    <update id="decrPoints">
+        UPDATE user_points
+        SET points = points - #{cost}
+        WHERE user_id = #{userId}
+          AND points &gt;= #{cost}
+    </update>
+
+    <!--
+      仅累加积分，不动签到字段：用于任务完成、管理员调整等场景
+    -->
+    <update id="addPointsOnly">
+        UPDATE user_points
+        SET points       = points + #{delta},
+            total_points = total_points + #{delta}
+        WHERE user_id = #{userId}
+    </update>
+
+    <!--
+      仅扣减 points（不动 total_points 与签到字段），用于"取消任务回退"
+      delta 通常为负数；带余额条件保护，避免负数下限
+    -->
+    <update id="subtractPointsOnly">
+        UPDATE user_points
+        SET points = points + #{delta}
+        WHERE user_id = #{userId}
+          AND points + #{delta} &gt;= 0
+    </update>
+
+</mapper>

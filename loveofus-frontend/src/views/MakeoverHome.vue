@@ -113,7 +113,7 @@ const quotaExhausted = computed(
 const quotaText = computed(() => {
   const q = quota.value
   if (!q) return ''
-  return q.unlimited ? '本月剩余：不限次' : `本月剩余：${q.remaining ?? 0}/${q.total ?? 0} 次`
+  return q.unlimited ? '剩余：不限次' : `剩余：${q.remaining ?? 0}/${q.total ?? 0} 次`
 })
 
 const canSubmit = computed(() => fileList.value.length === 1 && !!form.scene)

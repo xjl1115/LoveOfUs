@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <!-- 这是约会策划页的核心内容（不含 nav-bar），供 LoveHub 复用 -->
   <div class="date-plan-content">
     <!-- 顶部紧凑入口：让 AI 帮我们策划（默认进入心动页后第一眼看到的是下面的"我的约会计划"） -->
@@ -7,15 +7,18 @@
         <div class="hero-title">💕 让 AI 为你们策划一次约会</div>
         <div class="hero-sub">选个时间场景，AI 会定制 3 套方案</div>
       </div>
-      <van-button
-        round
-        type="primary"
-        size="small"
-        class="hero-btn"
-        @click="toggleAiPanel"
-      >
-        {{ showAiPanel ? '收起' : '✨ 立即生成' }}
-      </van-button>
+      <div class="hero-right">
+        <QuotaHint :quota="aiRecommendQuota" />
+        <van-button
+          round
+          type="primary"
+          size="small"
+          class="hero-btn"
+          @click="toggleAiPanel"
+        >
+          {{ showAiPanel ? '收起' : '✨ 立即生成' }}
+        </van-button>
+      </div>
     </div>
 
     <!-- AI 策划面板（默认收起，展开后显示筛选+结果） -->
@@ -429,7 +432,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, computed as vueComputed, onMounted } from 'vue'
-import { showToast } from 'vant'
+import { showToast, showDialog } from 'vant'
 import {
   recommendDatePlans,
   listDatePlans,
@@ -443,8 +446,45 @@ import {
   type DatePlanRecommendParams,
   type DatePlanTimeSlot
 } from '@/api/datePlan'
+import { getCurrentQuotas, type QuotaItem } from '@/api/vip'
 import PlanCard from '@/components/PlanCard.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import QuotaHint from '@/components/QuotaHint.vue'
+import type { BusinessError } from '@/utils/request'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
+
+// ============== AI 推荐配额（每周刷新） ==============
+const aiRecommendQuota = ref<QuotaItem | null>(null)
+async function refreshQuota() {
+  try {
+    const snapshot = await getCurrentQuotas()
+    aiRecommendQuota.value = snapshot.aiRecommend
+  } catch {
+    // 拉取失败不阻塞主功能
+  }
+}
+function quotaIsExhausted(): boolean {
+  const q = aiRecommendQuota.value
+  return !!q && !q.unlimited && q.remaining <= 0
+}
+
+/** 配额耗尽时的引导提示：等待重置 / 升级 VIP / 购买次数 */
+async function showQuotaExhaustedHint() {
+  const isConfirmed = await showDialog({
+    title: '本周 AI 推荐次数已用完',
+    message:
+      '【等待重置】次数会在每周一 00:00 自动刷新。\n' +
+      '【升级 VIP】周卡 +2 / 月卡 +6 / 季卡 +9 / 年卡 +12 次/周。\n' +
+      '【购买次数】在 VIP 页面购买次卡，按需补充 AI 推荐次数。',
+    showCancelButton: true,
+    confirmButtonText: '去 VIP 页面',
+    cancelButtonText: '知道了',
+    confirmButtonColor: '#e74c3c'
+  }).then(() => true).catch(() => false)
+  if (isConfirmed) router.push('/vip')
+}
 
 // ============== AI 面板折叠 ==============
 const showAiPanel = ref(false)
@@ -500,6 +540,10 @@ async function onRecommend() {
     showToast('请选择起始和结束日期')
     return
   }
+  if (quotaIsExhausted()) {
+    await showQuotaExhaustedHint()
+    return
+  }
   recommending.value = true
   recommended.value = []
   try {
@@ -514,10 +558,16 @@ async function onRecommend() {
     })
     recommended.value = res.plans
     if (res.plans.length === 0) showToast('暂时没有合适方案，换个条件试试')
-  } catch {
-    showToast('推荐失败，请稍后重试')
+  } catch (err) {
+    const businessError = err as BusinessError
+    if (businessError?.code === 403) {
+      await showQuotaExhaustedHint()
+    } else {
+      showToast('推荐失败，请稍后重试')
+    }
   } finally {
     recommending.value = false
+    await refreshQuota()
   }
 }
 
@@ -789,6 +839,7 @@ async function onSubmitNewPlan() {
 
 onMounted(() => {
   loadMyPlans()
+  refreshQuota()
 })
 </script>
 
@@ -836,6 +887,14 @@ onMounted(() => {
     background: linear-gradient(135deg, $primary-color 0%, $primary-light 100%);
     border: none;
     padding: 0 14px;
+  }
+
+  .hero-right {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
   }
 }
 

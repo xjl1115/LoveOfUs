@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.stream.Collectors;
 
@@ -107,6 +108,17 @@ public class GlobalExceptionHandler {
     public Result<Void> handleIllegalStateException(IllegalStateException e) {
         log.warn("非法状态: {}", e.getMessage());
         return Result.badRequest(e.getMessage());
+    }
+
+    /**
+     * 处理路由不存在异常（返回 404，避免与真实的 500 混淆）
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public Result<Void> handleNoResourceFoundException(NoResourceFoundException e) {
+        String message = "接口不存在: " + e.getResourcePath();
+        log.warn(message);
+        return Result.error(ResultCode.NOT_FOUND, message);
     }
 
     /**

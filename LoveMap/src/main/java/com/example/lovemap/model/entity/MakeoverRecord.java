@@ -47,6 +47,11 @@ public class MakeoverRecord {
     private String sceneText;
 
     /**
+     * 本次消耗来源：1=月度基础额度，2=次卡入账（不过期）
+     */
+    private Integer quotaSource;
+
+    /**
      * AI 返回的脸型/肤质特征 JSON
      */
     private String faceFeatures;

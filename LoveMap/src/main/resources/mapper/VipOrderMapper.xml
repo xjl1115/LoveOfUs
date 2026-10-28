@@ -8,6 +8,9 @@
         <result column="user_id" property="userId"/>
         <result column="group_id" property="groupId"/>
         <result column="vip_level" property="vipLevel"/>
+        <result column="order_type" property="orderType"/>
+        <result column="quota_type" property="quotaType"/>
+        <result column="quota_count" property="quotaCount"/>
         <result column="price_yuan" property="priceYuan"/>
         <result column="status" property="status"/>
         <result column="created_at" property="createdAt"/>
@@ -15,13 +18,13 @@
     </resultMap>
 
     <sql id="BaseColumns">
-        id, order_no, user_id, group_id, vip_level, price_yuan,
-        status, created_at, activated_at
+        id, order_no, user_id, group_id, vip_level, order_type, quota_type, quota_count,
+        price_yuan, status, created_at, activated_at
     </sql>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO vip_order (order_no, user_id, group_id, vip_level, price_yuan, status, created_at)
-        VALUES (#{orderNo}, #{userId}, #{groupId}, #{vipLevel}, #{priceYuan}, #{status}, #{createdAt})
+        INSERT INTO vip_order (order_no, user_id, group_id, vip_level, order_type, quota_type, quota_count, price_yuan, status, created_at)
+        VALUES (#{orderNo}, #{userId}, #{groupId}, #{vipLevel}, #{orderType}, #{quotaType}, #{quotaCount}, #{priceYuan}, #{status}, #{createdAt})
     </insert>
 
     <select id="selectByOrderNo" resultMap="BaseResultMap">
@@ -42,7 +45,12 @@
         SELECT o.order_no,
                o.user_id,
                u.nickname,
+               u.phone,
+               u.email,
                o.vip_level,
+               o.order_type,
+               o.quota_type,
+               o.quota_count,
                o.price_yuan,
                o.created_at
         FROM vip_order o
@@ -54,8 +62,13 @@
     <update id="cancelPendingOrders">
         UPDATE vip_order
         SET status = #{canceledStatus}
-        WHERE user_id = #{userId}
-          AND status = #{pendingStatus}
+        WHERE status = #{pendingStatus}
+          AND (
+              user_id = #{userId}
+              <if test="groupId != null">
+                  OR group_id = #{groupId}
+              </if>
+          )
     </update>
 
     <select id="selectByUserOrGroup" resultMap="BaseResultMap">
@@ -76,5 +89,79 @@
         WHERE id = #{id}
           AND status = #{pendingStatus}
     </update>
+
+    <sql id="HistoryQueryWhere">
+        <where>
+            <if test="query.status != null">
+                AND o.status = #{query.status}
+            </if>
+            <if test="query.orderNo != null and query.orderNo != ''">
+                AND o.order_no = #{query.orderNo}
+            </if>
+            <if test="query.phone != null and query.phone != ''">
+                AND u.phone = #{query.phone}
+            </if>
+            <if test="query.email != null and query.email != ''">
+                AND u.email = #{query.email}
+            </if>
+            <if test="query.year != null">
+                AND YEAR(o.created_at) = #{query.year}
+                <if test="query.month != null">
+                    AND MONTH(o.created_at) = #{query.month}
+                </if>
+            </if>
+        </where>
+    </sql>
+
+    <select id="selectOrderHistory" resultType="com.example.lovemap.model.vo.VipOrderHistoryVO">
+        SELECT o.order_no,
+               o.user_id,
+               u.nickname,
+               u.phone,
+               u.email,
+               o.vip_level,
+               o.order_type,
+               o.quota_type,
+               o.quota_count,
+               o.price_yuan,
+               o.status,
+               o.created_at,
+               o.activated_at
+        FROM vip_order o
+                 LEFT JOIN user u ON u.id = o.user_id
+        <include refid="HistoryQueryWhere"/>
+        ORDER BY o.created_at DESC, o.id DESC
+        LIMIT #{query.size} OFFSET #{query.offset}
+    </select>
+
+    <select id="countOrderHistory" resultType="long">
+        SELECT COUNT(*)
+        FROM vip_order o
+                 LEFT JOIN user u ON u.id = o.user_id
+        <include refid="HistoryQueryWhere"/>
+    </select>
+
+    <select id="selectPendingOrdersByGroup" resultType="com.example.lovemap.model.entity.VipOrder">
+        SELECT *
+        FROM vip_order
+        WHERE status = #{pendingStatus}
+          AND (
+              user_id = #{userId}
+              <if test="groupId != null">
+                  OR group_id = #{groupId}
+              </if>
+          )
+        ORDER BY created_at ASC, id ASC
+    </select>
+
+    <!-- 次卡入账统计：order_type=2 次卡，status=1 已开通；次卡不过期，不限定开通时间 -->
+    <select id="sumActivatedQuotaCount" resultType="int">
+        SELECT COALESCE(SUM(quota_count), 0)
+        FROM vip_order
+        WHERE user_id = #{userId}
+          AND order_type = 2
+          AND status = 1
+          AND quota_type = #{quotaType}
+    </select>
 
 </mapper>

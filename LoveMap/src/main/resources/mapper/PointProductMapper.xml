@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.lovemap.mapper.PointProductMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.lovemap.model.entity.PointProduct">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="description" property="description"/>
+        <result column="points_cost" property="pointsCost"/>
+        <result column="price_amount" property="priceAmount"/>
+        <result column="promo_status" property="promoStatus"/>
+        <result column="promo_points" property="promoPoints"/>
+        <result column="promo_amount" property="promoAmount"/>
+        <result column="stock" property="stock"/>
+        <result column="image_url" property="imageUrl"/>
+        <result column="status" property="status"/>
+        <result column="sort_order" property="sortOrder"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT id, name, description, points_cost, price_amount, promo_status, promo_points,
+               promo_amount, stock, image_url, status, sort_order, created_at, updated_at
+        FROM point_product
+        ORDER BY status DESC, sort_order ASC, id ASC
+    </select>
+
+    <select id="selectOnShelf" resultMap="BaseResultMap">
+        SELECT id, name, description, points_cost, price_amount, promo_status, promo_points,
+               promo_amount, stock, image_url, status, sort_order, created_at, updated_at
+        FROM point_product
+        WHERE status = 1
+        ORDER BY sort_order ASC, id ASC
+    </select>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT id, name, description, points_cost, price_amount, promo_status, promo_points,
+               promo_amount, stock, image_url, status, sort_order, created_at, updated_at
+        FROM point_product
+        WHERE id = #{id}
+        LIMIT 1
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO point_product (name, description, points_cost, price_amount, promo_status, promo_points,
+                                   promo_amount, stock, image_url, status, sort_order, created_at, updated_at)
+        VALUES (#{name}, #{description}, #{pointsCost}, #{priceAmount}, #{promoStatus}, #{promoPoints},
+                #{promoAmount}, #{stock}, #{imageUrl}, #{status}, #{sortOrder}, NOW(), NOW())
+    </insert>
+
+    <update id="update">
+        UPDATE point_product
+        SET name = #{name},
+            description = #{description},
+            points_cost = #{pointsCost},
+            price_amount = #{priceAmount},
+            promo_status = #{promoStatus},
+            promo_points = #{promoPoints},
+            promo_amount = #{promoAmount},
+            stock = #{stock},
+            image_url = #{imageUrl},
+            status = #{status},
+            sort_order = #{sortOrder},
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM point_product WHERE id = #{id}
+    </delete>
+
+    <!--
+      原子扣减库存：仅当 status=1 且 (stock = -1 或 stock > 0) 时成功
+      stock = -1 表示不限库存，不需要扣减
+    -->
+    <update id="decrStock">
+        UPDATE point_product
+        SET stock = stock - 1
+        WHERE id = #{id}
+          AND status = 1
+          AND (stock = -1 OR stock &gt; 0)
+    </update>
+
+</mapper>

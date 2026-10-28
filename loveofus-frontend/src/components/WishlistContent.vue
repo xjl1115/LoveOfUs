@@ -22,8 +22,11 @@
     </div>
 
     <div class="wishlist-toolbar">
-      <span class="toolbar-title">我的心愿</span>
-      <div class="toolbar-actions">
+      <div class="toolbar-row toolbar-row-top">
+        <span class="toolbar-title">我的心愿</span>
+        <QuotaHint :quota="aiWishlistQuota" />
+      </div>
+      <div class="toolbar-row toolbar-row-actions">
         <van-button
           round
           type="success"
@@ -225,7 +228,8 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
-import { showToast, showConfirmDialog, type UploaderFileListItem } from 'vant'
+import { showToast, showConfirmDialog, showDialog, type UploaderFileListItem } from 'vant'
+import { useRouter } from 'vue-router'
 import {
   listWishes,
   createWish,
@@ -245,6 +249,9 @@ import {
 import WishCard from '@/components/WishCard.vue'
 import WishCardPoster from '@/components/WishCardPoster.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import QuotaHint from '@/components/QuotaHint.vue'
+import { getCurrentQuotas, type QuotaItem } from '@/api/vip'
+import type { BusinessError } from '@/utils/request'
 import {
   renderWishCardImage,
   saveCardImage,
@@ -259,6 +266,39 @@ const CATEGORY_LABEL: Record<WishCategory, string> = {
   experience: '体验',
   growth: '成长',
   memory: '纪念'
+}
+
+const router = useRouter()
+
+// ============== AI 心愿推荐配额（每周刷新） ==============
+const aiWishlistQuota = ref<QuotaItem | null>(null)
+async function refreshQuota() {
+  try {
+    const snapshot = await getCurrentQuotas()
+    aiWishlistQuota.value = snapshot.aiWishlist
+  } catch {
+    // 拉取失败不阻塞主功能
+  }
+}
+function quotaIsExhausted(): boolean {
+  const q = aiWishlistQuota.value
+  return !!q && !q.unlimited && q.remaining <= 0
+}
+
+/** 配额耗尽时的引导提示：等待重置 / 升级 VIP / 购买次数 */
+async function showQuotaExhaustedHint() {
+  const isConfirmed = await showDialog({
+    title: '本周 AI 推荐次数已用完',
+    message:
+      '【等待重置】次数会在每周一 00:00 自动刷新。\n' +
+      '【升级 VIP】周卡 +2 / 月卡 +6 / 季卡 +9 / 年卡 +12 次/周。\n' +
+      '【购买次数】在 VIP 页面购买次卡，按需补充 AI 推荐次数。',
+    showCancelButton: true,
+    confirmButtonText: '去 VIP 页面',
+    cancelButtonText: '知道了',
+    confirmButtonColor: '#e74c3c'
+  }).then(() => true).catch(() => false)
+  if (isConfirmed) router.push('/vip')
 }
 
 const categoryOptions: Array<{ label: string; value: WishCategory | 'all' }> = [
@@ -579,14 +619,19 @@ const recommendCategoryOptions: Array<{ label: string; value: WishCategory | 'al
   ...categoryOptions
 ]
 
-async function onAiRecommend() {
-  showRecommendDrawer.value = true
-  await loadRecommendations()
-}
-
 async function onRecommendCategoryChange(value: WishCategory | 'all') {
   if (recommendCategory.value === value) return
   recommendCategory.value = value
+  await loadRecommendations()
+}
+
+async function onAiRecommend() {
+  if (quotaIsExhausted()) {
+    showRecommendDrawer.value = true
+    await showQuotaExhaustedHint()
+    return
+  }
+  showRecommendDrawer.value = true
   await loadRecommendations()
 }
 
@@ -607,8 +652,17 @@ async function loadRecommendations() {
       seenTitles.add(title)
       return true
     })
+  } catch (err) {
+    const businessError = err as BusinessError
+    if (businessError?.code === 403) {
+      showRecommendDrawer.value = false
+      await showQuotaExhaustedHint()
+    } else {
+      showToast('推荐失败，请稍后重试')
+    }
   } finally {
     recommending.value = false
+    await refreshQuota()
   }
 }
 
@@ -628,6 +682,7 @@ async function onAcceptRecommend(w: Wish) {
 
 onMounted(() => {
   reloadAll()
+  refreshQuota()
   // 监听全局事件：页面 nav-bar 上的"+"
   window.addEventListener('wishlist:create', openCreate)
 })
@@ -691,14 +746,30 @@ defineExpose({ openCreate })
 
 .wishlist-toolbar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  gap: 10px;
   margin: 16px;
   padding: 12px 14px;
   background: #fff;
   border-radius: $radius-lg;
   box-shadow: $shadow-sm;
+
+  .toolbar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .toolbar-row-top {
+    justify-content: space-between;
+  }
+
+  .toolbar-row-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    row-gap: 8px;
+  }
 
   .toolbar-title {
     font-size: 15px;
@@ -706,22 +777,16 @@ defineExpose({ openCreate })
     color: $text-primary;
   }
 
-  .toolbar-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
   .manual-create-btn {
     margin: 0;
-    padding: 0 11px;
+    padding: 0 12px;
     background: linear-gradient(135deg, #52c41a 0%, #73d13d 100%);
     border: none;
   }
 
   .ai-recommend-btn {
     margin: 0;
-    padding: 0 11px;
+    padding: 0 12px;
     background: linear-gradient(135deg, #6c8cff 0%, #8a5cff 100%);
     border: none;
   }

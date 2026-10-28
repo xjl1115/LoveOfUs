@@ -25,13 +25,16 @@
       margin-bottom: 16px;
     }
     .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-    input[type=password] {
-      width: 320px;
+    input[type=text], input[type=password], input[type=number], select {
       padding: 8px 10px;
       border: 1px solid #d9dde3;
       border-radius: 6px;
       font-size: 14px;
+      background: #fff;
+      color: #23272f;
     }
+    input[type=number] { width: 110px; }
+    input[type=password] { width: 320px; }
     button {
       padding: 8px 14px;
       border: 1px solid #d9dde3;
@@ -64,12 +67,69 @@
     .result .ok { color: #159a52; }
     .result .err { color: #e5484d; }
     .mono { font-family: Consolas, "Courier New", monospace; font-size: 12px; }
+    .field { display: flex; flex-direction: column; gap: 4px; }
+    .field label { font-size: 12px; color: #6b7280; }
+    .thumb {
+      width: 48px;
+      height: 48px;
+      border-radius: 6px;
+      object-fit: cover;
+      background: #f2f4f7;
+      display: block;
+    }
+    .thumb-none {
+      width: 48px;
+      height: 48px;
+      border-radius: 6px;
+      background: #f2f4f7;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #b8bdc4;
+      font-size: 11px;
+    }
+    .badge-promo { background: #ffe4e6; color: #e5484d; }
+    .badge-off { background: #f2f4f7; color: #8a9099; }
+    .promo-original { color: #b8bdc4; font-size: 11px; text-decoration: line-through; }
+    .upload-row { display: flex; align-items: center; gap: 8px; }
+    .upload-row img { width: 60px; height: 60px; border-radius: 6px; object-fit: cover; background: #f2f4f7; }
+    .pager { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+    .status-pending { color: #d97706; }
+    .status-activated { color: #159a52; }
+    .status-canceled { color: #9aa0a6; text-decoration: line-through; }
+    .pricing-table td .price-input { width: 110px; }
+    .pricing-table td .badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      margin-right: 4px;
+    }
+    .badge-vip { background: #fef3c7; color: #92400e; }
+    .badge-quota { background: #dbeafe; color: #1d4ed8; }
+    .dirty-bar {
+      display: none;
+      position: sticky;
+      bottom: 12px;
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      background: #fff7ed;
+      border: 1px solid #fdba74;
+      color: #9a3412;
+      font-size: 13px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.08);
+    }
+    .dirty-bar.show { display: flex; }
   </style>
 </head>
 <body>
   <div class="card">
     <h1>VIP 顾问台</h1>
-    <div class="sub">查看待开通订单、单个或批量开通。接口由 X-Vip-Admin-Token 校验，密钥不会写入服务端。</div>
+    <div class="sub">查看待开通订单、单个或批量开通、查询历史订单、管理 VIP 与次卡价格。接口由 X-Vip-Admin-Token 校验，密钥不会写入服务端。</div>
     <div class="row">
       <input id="keyInput" type="password" placeholder="请输入顾问密钥" autocomplete="off">
       <button id="verifyBtn" class="primary">校验密钥</button>
@@ -86,11 +146,18 @@
         <button id="refreshBtn">刷新列表</button>
         <button id="batchBtn" class="primary" disabled>批量开通选中</button>
         <label class="row"><input type="checkbox" id="selectAll"> 全选本页</label>
+        <span style="flex: 1"></span>
+        <button id="toggleHistoryBtn">展开历史开通</button>
+        <button id="togglePricingBtn">展开价格管理</button>
+        <button id="togglePointProductsBtn">展开积分商品</button>
+        <button id="togglePendingOrdersBtn">展开待确认兑换</button>
+        <button id="toggleCoupleTasksBtn">展开情侣任务</button>
         <span id="listHint" class="hint"></span>
       </div>
     </div>
 
     <div class="card">
+      <h2>待开通订单</h2>
       <table>
         <thead>
           <tr>
@@ -98,6 +165,8 @@
             <th>订单号</th>
             <th>用户 ID</th>
             <th>用户昵称</th>
+            <th>手机号</th>
+            <th>邮箱</th>
             <th>档位</th>
             <th>金额</th>
             <th>下单时间</th>
@@ -109,6 +178,183 @@
       <div id="emptyTip" class="empty" hidden>暂无待开通订单</div>
     </div>
 
+    <div id="historyCard" class="card" hidden>
+      <h2>历史开通</h2>
+      <div class="row" style="margin-bottom: 12px;">
+        <div class="field">
+          <label>状态</label>
+          <div class="row">
+            <button id="histStatusAllBtn" class="primary" data-status="">全部</button>
+            <button id="histStatusActivatedBtn" data-status="1">已开通</button>
+            <button id="histStatusCanceledBtn" data-status="2">已取消</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>订单号</label>
+          <input id="histOrderNo" type="text" placeholder="精确匹配">
+        </div>
+        <div class="field">
+          <label>用户手机号</label>
+          <input id="histPhone" type="text" placeholder="精确匹配">
+        </div>
+        <div class="field">
+          <label>用户邮箱</label>
+          <input id="histEmail" type="text" placeholder="精确匹配">
+        </div>
+        <div class="field">
+          <label>年份</label>
+          <select id="histYear"></select>
+        </div>
+        <div class="field">
+          <label>月份</label>
+          <select id="histMonth">
+            <option value="">全部</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>&nbsp;</label>
+          <div class="row">
+            <button id="histQueryBtn" class="primary">查询</button>
+            <button id="histResetBtn">重置</button>
+          </div>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>订单号</th>
+            <th>用户 ID</th>
+            <th>用户昵称</th>
+            <th>手机号</th>
+            <th>邮箱</th>
+            <th>档位</th>
+            <th>金额</th>
+            <th>状态</th>
+            <th>下单时间</th>
+            <th>开通时间</th>
+          </tr>
+        </thead>
+        <tbody id="histTbody"></tbody>
+      </table>
+      <div id="histEmptyTip" class="empty" hidden>暂无历史订单</div>
+      <div class="pager" style="margin-top: 12px;">
+        <span id="histPagerHint" class="hint"></span>
+        <button id="histPrevBtn">上一页</button>
+        <button id="histNextBtn">下一页</button>
+      </div>
+    </div>
+
+    <!-- 价格管理 -->
+    <div id="pricingCard" class="card" hidden>
+      <h2>VIP 与次卡价格</h2>
+      <div class="sub">调整 VIP 周/月/季/年/永久卡与三种次卡的单价。保存后对前端开卡页立即生效，最长 5 分钟覆盖所有缓存。</div>
+      <table class="pricing-table">
+        <thead>
+          <tr>
+            <th>类型</th>
+            <th>业务编码</th>
+            <th>产品</th>
+            <th>说明</th>
+            <th>单价（元）</th>
+          </tr>
+        </thead>
+        <tbody id="pricingTbody"></tbody>
+      </table>
+      <div class="row" style="margin-top: 12px; justify-content: flex-end;">
+        <button id="pricingReloadBtn">放弃修改</button>
+        <button id="pricingSaveBtn" class="primary" disabled>保存修改</button>
+        <span id="pricingHint" class="hint"></span>
+      </div>
+      <div id="pricingDirtyBar" class="dirty-bar">
+        <span>当前有未保存的修改</span>
+        <span id="pricingDirtyCount" class="hint">0</span>
+      </div>
+    </div>
+
+
+    <!-- 待确认兑换（积分商品订单） -->
+    <div id="pendingOrdersCard" class="card" hidden>
+      <h2>待确认兑换（积分商品）</h2>
+      <div class="sub">用户下单后需顾问线下收款，确认无误后点「确认发放」扣减积分与库存；若无法成交请点「取消订单」。</div>
+      <table>
+        <thead>
+          <tr>
+            <th>订单号</th>
+            <th>用户 ID</th>
+            <th>商品</th>
+            <th>数量</th>
+            <th>扣积分</th>
+            <th>需收款（元）</th>
+            <th>下单时间</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="poTbody"></tbody>
+      </table>
+      <div id="poEmptyTip" class="empty" hidden>暂无待确认兑换订单</div>
+      <div class="row" style="margin-top: 12px;">
+        <button id="poReloadBtn">刷新</button>
+        <span id="poHint" class="hint"></span>
+      </div>
+    </div>
+
+    <!-- 积分商品管理 -->
+    <div id="pointProductsCard" class="card" hidden>
+      <h2>积分商品</h2>
+      <div class="sub">商品字段：名称、描述、所需积分、金额（留空=纯积分兑换）、库存（-1=不限）、图片（直接上传到 OSS）、促销、状态（1=上架/0=下架）、排序。含金额的商品由用户下单、顾问线下收款后确认发放。</div>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>图片</th>
+            <th>名称</th>
+            <th>描述</th>
+            <th>积分</th>
+            <th>金额（元）</th>
+            <th>促销</th>
+            <th>库存</th>
+            <th>状态</th>
+            <th>排序</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="ppTbody"></tbody>
+      </table>
+      <div class="row" style="margin-top: 12px;">
+        <button id="ppAddBtn" class="primary">新增商品</button>
+        <button id="ppReloadBtn">刷新</button>
+        <span id="ppHint" class="hint"></span>
+      </div>
+    </div>
+
+    <!-- 情侣任务管理 -->
+    <div id="coupleTasksCard" class="card" hidden>
+      <h2>情侣任务</h2>
+      <div class="sub">任务字段：内容、描述、emoji 图标、积分奖励、完成方式（系统自动识别的行为）、周期、领取方式、状态（1=启用/0=禁用）、排序。</div>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>内容</th>
+            <th>描述</th>
+            <th>图标</th>
+            <th>积分</th>
+            <th>完成方式</th>
+            <th>周期</th>
+            <th>领取方式</th>
+            <th>状态</th>
+            <th>排序</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="ctTbody"></tbody>
+      </table>
+      <div class="row" style="margin-top: 12px;">
+        <button id="ctAddBtn" class="primary">新增任务</button>
+        <button id="ctReloadBtn">刷新</button>
+        <span id="ctHint" class="hint"></span>
+      </div>
+    </div>
     <div id="resultCard" class="card" hidden>
       <h2>操作结果</h2>
       <ul id="resultList" class="result"></ul>
@@ -116,11 +362,20 @@
   </div>
 
   <script>
-    var API_BASE = '/api/vip/admin/orders'
+    var API_BASE = '/api/vip/admin'
     var STORAGE_KEY = 'vipAdminToken'
     var token = sessionStorage.getItem(STORAGE_KEY) || ''
     var orders = []
     var selected = {}
+    var historyPage = 1
+    var historySize = 20
+    var historyTotal = 0
+    var historyPages = 0
+    /** 当前过滤的状态：null=全部，1=已开通，2=已取消 */
+    var historyStatusFilter = null
+    /** 价格管理：本地暂存远端价格，编辑时只更新 priceDrafts */
+    var pricingList = []
+    var priceDrafts = {} // {id: priceYuan}
 
     var keyInput = document.getElementById('keyInput')
     var keyHint = document.getElementById('keyHint')
@@ -135,6 +390,31 @@
     var selectAll = document.getElementById('selectAll')
     var resultCard = document.getElementById('resultCard')
     var resultList = document.getElementById('resultList')
+    var toggleHistoryBtn = document.getElementById('toggleHistoryBtn')
+    var historyCard = document.getElementById('historyCard')
+    var histOrderNo = document.getElementById('histOrderNo')
+    var histPhone = document.getElementById('histPhone')
+    var histEmail = document.getElementById('histEmail')
+    var histYear = document.getElementById('histYear')
+    var histMonth = document.getElementById('histMonth')
+    var histQueryBtn = document.getElementById('histQueryBtn')
+    var histResetBtn = document.getElementById('histResetBtn')
+    var histTbody = document.getElementById('histTbody')
+    var histEmptyTip = document.getElementById('histEmptyTip')
+    var histPagerHint = document.getElementById('histPagerHint')
+    var histPrevBtn = document.getElementById('histPrevBtn')
+    var histNextBtn = document.getElementById('histNextBtn')
+    var histStatusAllBtn = document.getElementById('histStatusAllBtn')
+    var histStatusActivatedBtn = document.getElementById('histStatusActivatedBtn')
+    var histStatusCanceledBtn = document.getElementById('histStatusCanceledBtn')
+    var togglePricingBtn = document.getElementById('togglePricingBtn')
+    var pricingCard = document.getElementById('pricingCard')
+    var pricingTbody = document.getElementById('pricingTbody')
+    var pricingReloadBtn = document.getElementById('pricingReloadBtn')
+    var pricingSaveBtn = document.getElementById('pricingSaveBtn')
+    var pricingHint = document.getElementById('pricingHint')
+    var pricingDirtyBar = document.getElementById('pricingDirtyBar')
+    var pricingDirtyCount = document.getElementById('pricingDirtyCount')
 
     function request(path, options) {
       options = options || {}
@@ -181,6 +461,8 @@
           '<td class="mono">' + escapeHtml(order.orderNo) + '</td>' +
           '<td>' + escapeHtml(order.userId) + '</td>' +
           '<td>' + escapeHtml(order.nickname || '-') + '</td>' +
+          '<td class="mono">' + escapeHtml(order.phone || '-') + '</td>' +
+          '<td class="mono">' + escapeHtml(order.email || '-') + '</td>' +
           '<td>' + escapeHtml(order.vipLevelName || '-') + '</td>' +
           '<td>' + (order.priceYuan == null ? '-' : escapeHtml(order.priceYuan) + ' 元') + '</td>' +
           '<td>' + formatTime(order.createdAt) + '</td>' +
@@ -207,6 +489,7 @@
       verifyBtn.hidden = true
       clearBtn.hidden = false
       keyInput.hidden = true
+      initYearOptions()
     }
 
     function showGate() {
@@ -217,11 +500,42 @@
       keyInput.hidden = false
       orders = []
       selected = {}
+      historyCard.hidden = true
+      pricingCard.hidden = true
+      pricingList = []
+      priceDrafts = {}
+      pendingOrdersCard.hidden = true
+      poOrders = []
+    }
+
+    /** 初始化年份下拉：当前年 ± 5 年，默认不选（按需筛选） */
+    function initYearOptions() {
+      if (histYear.options.length > 0) return
+      var now = new Date().getFullYear()
+      var frag = document.createDocumentFragment()
+      var allOpt = document.createElement('option')
+      allOpt.value = ''
+      allOpt.textContent = '全部'
+      frag.appendChild(allOpt)
+      for (var y = now + 1; y >= now - 5; y--) {
+        var opt = document.createElement('option')
+        opt.value = y
+        opt.textContent = y
+        frag.appendChild(opt)
+      }
+      histYear.appendChild(frag)
+      // 月份 01-12
+      for (var m = 1; m <= 12; m++) {
+        var mo = document.createElement('option')
+        mo.value = m < 10 ? '0' + m : String(m)
+        mo.textContent = m + ' 月'
+        histMonth.appendChild(mo)
+      }
     }
 
     /** 拉取待开通列表；返回是否校验通过（列表可用） */
     function loadOrders() {
-      return request('/pending').then(function (res) {
+      return request('/orders/pending').then(function (res) {
         if (res.code !== 200) {
           setHint(keyHint, res.message || '密钥校验失败', 'err')
           showGate()
@@ -236,6 +550,71 @@
         selected = valid
         render()
         return true
+      })
+    }
+
+    /** 高亮当前过滤状态按钮 */
+    function renderStatusFilter() {
+      var btns = [histStatusAllBtn, histStatusActivatedBtn, histStatusCanceledBtn]
+      var activeVal = historyStatusFilter == null ? '' : String(historyStatusFilter)
+      btns.forEach(function (btn) {
+        if (!btn) return
+        var isActive = btn.getAttribute('data-status') === activeVal
+        if (isActive) {
+          btn.classList.add('primary')
+        } else {
+          btn.classList.remove('primary')
+        }
+      })
+    }
+
+    /** 拉取历史订单分页 */
+    function loadHistory() {
+      var params = new URLSearchParams()
+      if (historyStatusFilter != null) params.set('status', String(historyStatusFilter))
+      if (histOrderNo.value.trim()) params.set('orderNo', histOrderNo.value.trim())
+      if (histPhone.value.trim()) params.set('phone', histPhone.value.trim())
+      if (histEmail.value.trim()) params.set('email', histEmail.value.trim())
+      if (histYear.value) params.set('year', histYear.value)
+      if (histMonth.value) params.set('month', histMonth.value)
+      params.set('page', historyPage)
+      params.set('size', historySize)
+
+      request('/orders/history?' + params.toString()).then(function (res) {
+        if (res.code !== 200) {
+          setHint(histPagerHint, res.message || '查询失败', 'err')
+          histTbody.innerHTML = ''
+          histEmptyTip.hidden = false
+          return
+        }
+        var data = res.data || {}
+        var list = data.list || []
+        historyTotal = data.total || 0
+        historyPages = data.pages || 0
+        historyPage = data.page || 1
+
+        var rows = list.map(function (o) {
+          var statusCls = 'status-pending'
+          if (o.status === 1) statusCls = 'status-activated'
+          else if (o.status === 2) statusCls = 'status-canceled'
+          return '<tr>' +
+            '<td class="mono">' + escapeHtml(o.orderNo) + '</td>' +
+            '<td>' + escapeHtml(o.userId) + '</td>' +
+            '<td>' + escapeHtml(o.nickname || '-') + '</td>' +
+            '<td class="mono">' + escapeHtml(o.phone || '-') + '</td>' +
+            '<td class="mono">' + escapeHtml(o.email || '-') + '</td>' +
+            '<td>' + escapeHtml(o.vipLevelName || '-') + '</td>' +
+            '<td>' + (o.priceYuan == null ? '-' : escapeHtml(o.priceYuan) + ' 元') + '</td>' +
+            '<td class="' + statusCls + '">' + escapeHtml(o.statusName || '-') + '</td>' +
+            '<td>' + formatTime(o.createdAt) + '</td>' +
+            '<td>' + formatTime(o.activatedAt) + '</td>' +
+            '</tr>'
+        }).join('')
+        histTbody.innerHTML = rows
+        histEmptyTip.hidden = list.length > 0
+        setHint(histPagerHint, '共 ' + historyTotal + ' 条，第 ' + historyPage + ' / ' + Math.max(historyPages, 1) + ' 页')
+        histPrevBtn.disabled = !data.hasPrevious
+        histNextBtn.disabled = !data.hasNext
       })
     }
 
@@ -260,12 +639,13 @@
 
     function activate(orderNo) {
       if (!window.confirm('确认已收到款项并开通订单 ' + orderNo + ' ？')) return
-      request('/' + encodeURIComponent(orderNo) + '/activate', { method: 'POST' }).then(function (res) {
+      request('/orders/' + encodeURIComponent(orderNo) + '/activate', { method: 'POST' }).then(function (res) {
         renderResults('开通结果', [{
           success: res.code === 200,
           text: orderNo + '：' + (res.message || '') + (res.code === 200 && res.data && res.data.vipExpireAt ? '，到期时间 ' + formatTime(res.data.vipExpireAt) : '')
         }])
         loadOrders()
+        if (!historyCard.hidden) loadHistory()
       })
     }
 
@@ -273,7 +653,7 @@
       var orderNos = selectedOrderNos()
       if (!orderNos.length) return
       if (!window.confirm('确认已收到款项并批量开通 ' + orderNos.length + ' 笔订单？')) return
-      request('/batch-activate', { method: 'POST', body: JSON.stringify({ orderNos: orderNos }) }).then(function (res) {
+      request('/orders/batch-activate', { method: 'POST', body: JSON.stringify({ orderNos: orderNos }) }).then(function (res) {
         if (res.code !== 200) {
           renderResults('批量开通结果', [{ success: false, text: res.message || '批量开通失败' }])
         } else {
@@ -287,7 +667,100 @@
           renderResults('批量开通结果：成功 ' + (data.successCount || 0) + ' 笔，失败 ' + (data.failCount || 0) + ' 笔', items)
         }
         loadOrders()
+        if (!historyCard.hidden) loadHistory()
       })
+    }
+
+    /* ===================== 价格管理 ===================== */
+
+    function loadPricing() {
+      request('/pricing').then(function (res) {
+        if (res.code !== 200) {
+          setHint(pricingHint, res.message || '加载价格失败', 'err')
+          return
+        }
+        pricingList = (res.data || []).slice().sort(function (a, b) {
+          return (a.sortOrder || 0) - (b.sortOrder || 0)
+        })
+        priceDrafts = {}
+        renderPricing()
+        setHint(pricingHint, '已加载 ' + pricingList.length + ' 条价格', 'ok')
+      })
+    }
+
+    function renderPricing() {
+      pricingTbody.innerHTML = ''
+      pricingList.forEach(function (item) {
+        var tr = document.createElement('tr')
+        var typeBadge = item.productType === 1
+          ? '<span class="badge badge-vip">VIP 卡</span>'
+          : '<span class="badge badge-quota">次卡</span>'
+        var current = priceDrafts[item.id] != null ? priceDrafts[item.id] : item.priceYuan
+        tr.innerHTML =
+          '<td>' + typeBadge + '</td>' +
+          '<td class="mono">' + escapeHtml(item.productCode) + '</td>' +
+          '<td>' + escapeHtml(item.productName) + '</td>' +
+          '<td>' + escapeHtml(item.description || '-') + '</td>' +
+          '<td><input type="number" class="price-input" data-id="' + item.id + '" min="0.01" max="99999.99" step="0.01" value="' + escapeHtml(current) + '"></td>'
+        pricingTbody.appendChild(tr)
+      })
+      updatePricingButtons()
+    }
+
+    function updatePricingButtons() {
+      var dirtyCount = 0
+      pricingList.forEach(function (item) {
+        if (priceDrafts[item.id] != null && Number(priceDrafts[item.id]) !== Number(item.priceYuan)) {
+          dirtyCount++
+        }
+      })
+      pricingSaveBtn.disabled = dirtyCount === 0
+      pricingReloadBtn.disabled = dirtyCount === 0
+      if (dirtyCount > 0) {
+        pricingDirtyBar.classList.add('show')
+        pricingDirtyCount.textContent = dirtyCount + ' 项待保存'
+      } else {
+        pricingDirtyBar.classList.remove('show')
+        pricingDirtyCount.textContent = '0'
+      }
+    }
+
+    function savePricing() {
+      var items = []
+      pricingList.forEach(function (item) {
+        var draft = priceDrafts[item.id]
+        if (draft != null && Number(draft) !== Number(item.priceYuan)) {
+          var value = Number(draft)
+          if (!(value > 0) || value > 99999.99) {
+            setHint(pricingHint, item.productName + ' 价格必须在 0.01 ~ 99999.99 元之间', 'err')
+            return
+          }
+          items.push({ id: item.id, priceYuan: value })
+        }
+      })
+      if (items.length === 0) {
+        setHint(pricingHint, '没有需要保存的修改', 'ok')
+        return
+      }
+      pricingSaveBtn.disabled = true
+      setHint(pricingHint, '保存中…')
+      request('/pricing', { method: 'PUT', body: JSON.stringify({ items: items }) }).then(function (res) {
+        if (res.code !== 200) {
+          setHint(pricingHint, res.message || '保存失败', 'err')
+          pricingSaveBtn.disabled = false
+          return
+        }
+        setHint(pricingHint, '已更新 ' + res.data + ' 条价格', 'ok')
+        loadPricing()
+        // 同步清掉前端 localStorage 缓存，下一次开卡页会拉到最新价
+        try { localStorage.removeItem('lovemap:vip:pricing') } catch (e) {}
+      })
+    }
+
+    function discardPricingChanges() {
+      priceDrafts = {}
+      renderPricing()
+      setHint(pricingHint, '已放弃未保存的修改', 'ok')
     }
 
     verifyBtn.addEventListener('click', verify)
@@ -322,12 +795,512 @@
       if (orderNo) activate(orderNo)
     })
 
+    toggleHistoryBtn.addEventListener('click', function () {
+      var willShow = historyCard.hidden
+      historyCard.hidden = !willShow
+      toggleHistoryBtn.textContent = willShow ? '收起历史开通' : '展开历史开通'
+      if (willShow) {
+        renderStatusFilter()
+        loadHistory()
+      }
+    })
+    histQueryBtn.addEventListener('click', function () {
+      historyPage = 1
+      loadHistory()
+    })
+    histResetBtn.addEventListener('click', function () {
+      histOrderNo.value = ''
+      histPhone.value = ''
+      histEmail.value = ''
+      histYear.value = ''
+      histMonth.value = ''
+      historyStatusFilter = null
+      renderStatusFilter()
+      historyPage = 1
+      loadHistory()
+    })
+
+    /** 状态过滤按钮：独立控制，点哪个就只查哪个（"全部"清空过滤） */
+    function bindStatusBtn(btn, value) {
+      btn.addEventListener('click', function () {
+        historyStatusFilter = value
+        renderStatusFilter()
+        historyPage = 1
+        loadHistory()
+      })
+    }
+    bindStatusBtn(histStatusAllBtn, null)
+    bindStatusBtn(histStatusActivatedBtn, 1)
+    bindStatusBtn(histStatusCanceledBtn, 2)
+    histPrevBtn.addEventListener('click', function () {
+      if (historyPage > 1) {
+        historyPage--
+        loadHistory()
+      }
+    })
+    histNextBtn.addEventListener('click', function () {
+      if (historyPage < historyPages) {
+        historyPage++
+        loadHistory()
+      }
+    })
+
+    /* 价格管理事件 */
+    togglePricingBtn.addEventListener('click', function () {
+      var willShow = pricingCard.hidden
+      pricingCard.hidden = !willShow
+      togglePricingBtn.textContent = willShow ? '收起价格管理' : '展开价格管理'
+      if (willShow) loadPricing()
+    })
+    pricingReloadBtn.addEventListener('click', discardPricingChanges)
+    pricingSaveBtn.addEventListener('click', savePricing)
+    pricingTbody.addEventListener('input', function (e) {
+      var id = Number(e.target.getAttribute('data-id'))
+      if (!id) return
+      var raw = e.target.value
+      if (raw === '' || isNaN(Number(raw))) {
+        delete priceDrafts[id]
+      } else {
+        priceDrafts[id] = raw
+      }
+      updatePricingButtons()
+    })
+
     // 已有密钥（同标签页刷新）时自动校验一次
     if (token) {
       loadOrders().then(function (ok) {
         if (ok) showPanel()
       })
     }
+
+    // ============== 待确认兑换（积分商品订单） ==============
+    var togglePendingOrdersBtn = document.getElementById('togglePendingOrdersBtn')
+    var pendingOrdersCard = document.getElementById('pendingOrdersCard')
+    var poTbody = document.getElementById('poTbody')
+    var poEmptyTip = document.getElementById('poEmptyTip')
+    var poReloadBtn = document.getElementById('poReloadBtn')
+    var poHint = document.getElementById('poHint')
+    var poOrders = []
+    togglePendingOrdersBtn.addEventListener('click', function () {
+      pendingOrdersCard.hidden = !pendingOrdersCard.hidden
+      togglePendingOrdersBtn.textContent = pendingOrdersCard.hidden ? '展开待确认兑换' : '收起待确认兑换'
+      if (!pendingOrdersCard.hidden) loadPendingOrders()
+    })
+    poReloadBtn.addEventListener('click', loadPendingOrders)
+
+    function loadPendingOrders() {
+      poOrders = []
+      request('/../../admin/points/orders/pending').then(function (resp) {
+        if (resp.code === 200 && Array.isArray(resp.data)) {
+          poOrders = resp.data
+          renderPendingOrders()
+          setHint(poHint, '共 ' + poOrders.length + ' 笔待确认', 'ok')
+        } else {
+          setHint(poHint, '加载失败：' + (resp.message || ''), 'err')
+        }
+      })
+    }
+
+    function renderPendingOrders() {
+      poTbody.innerHTML = ''
+      poOrders.forEach(function (o) {
+        var tr = document.createElement('tr')
+        tr.innerHTML =
+          '<td class="mono">' + escapeHtml(o.orderNo) + '</td>' +
+          '<td>' + escapeHtml(o.userId) + '</td>' +
+          '<td>' + escapeHtml(o.productName || '-') + '</td>' +
+          '<td>' + escapeHtml(o.quantity) + '</td>' +
+          '<td>' + escapeHtml(o.totalPoints) + '</td>' +
+          '<td>' + (o.priceAmount == null ? '-' : escapeHtml(o.priceAmount) + ' 元') + '</td>' +
+          '<td>' + formatTime(o.createdAt) + '</td>' +
+          '<td><button class="primary" data-activate-po="' + escapeHtml(o.orderNo) + '">确认发放</button> ' +
+          '<button data-cancel-po="' + escapeHtml(o.orderNo) + '">取消订单</button></td>'
+        poTbody.appendChild(tr)
+      })
+      poEmptyTip.hidden = poOrders.length > 0
+    }
+
+    poTbody.addEventListener('click', function (e) {
+      var activateNo = e.target.getAttribute('data-activate-po')
+      var cancelNo = e.target.getAttribute('data-cancel-po')
+      if (activateNo) {
+        if (!window.confirm('确认已收到款项并发放订单 ' + activateNo + ' ？将扣减用户积分与库存。')) return
+        request('/../../admin/points/orders/' + encodeURIComponent(activateNo) + '/activate', { method: 'POST' }).then(function (resp) {
+          renderResults('发放结果', [{ success: resp.code === 200, text: activateNo + '：' + (resp.message || '') }])
+          loadPendingOrders()
+          loadProducts()
+        })
+      } else if (cancelNo) {
+        if (!window.confirm('确认取消订单 ' + cancelNo + ' ？')) return
+        request('/../../admin/points/orders/' + encodeURIComponent(cancelNo) + '/cancel', { method: 'POST' }).then(function (resp) {
+          renderResults('取消结果', [{ success: resp.code === 200, text: cancelNo + '：' + (resp.message || '') }])
+          loadPendingOrders()
+        })
+      }
+    })
+
+    // ============== 积分商品管理 ==============
+    var togglePointProductsBtn = document.getElementById('togglePointProductsBtn')
+    var pointProductsCard = document.getElementById('pointProductsCard')
+    var ppTbody = document.getElementById('ppTbody')
+    var ppAddBtn = document.getElementById('ppAddBtn')
+    var ppReloadBtn = document.getElementById('ppReloadBtn')
+    var ppHint = document.getElementById('ppHint')
+    var ppProducts = []
+    togglePointProductsBtn.addEventListener('click', function () {
+      pointProductsCard.hidden = !pointProductsCard.hidden
+      if (!pointProductsCard.hidden) loadProducts()
+    })
+    ppReloadBtn.addEventListener('click', loadProducts)
+    ppAddBtn.addEventListener('click', function () {
+      editProduct({ id: null, name: '', description: '', pointsCost: 100, priceAmount: null, promoStatus: 0, promoPoints: null, promoAmount: null, stock: 0, imageUrl: '', status: 1, sortOrder: 0 })
+    })
+
+    function loadProducts() {
+      ppProducts = []
+      request('/../../admin/points/products').then(function (resp) {
+        if (resp.code === 200 && Array.isArray(resp.data)) {
+          ppProducts = resp.data
+          renderProducts()
+          setHint(ppHint, '共 ' + ppProducts.length + ' 个商品', 'ok')
+        } else {
+          setHint(ppHint, '加载失败：' + (resp.message || ''), 'err')
+        }
+      })
+    }
+
+    function renderProducts() {
+      ppTbody.innerHTML = ''
+      ppProducts.forEach(function (p) {
+        var tr = document.createElement('tr')
+        var imgCell = p.imageUrl
+          ? '<img class="thumb" src="' + escapeHtml(p.imageUrl) + '" alt="商品图">'
+          : '<div class="thumb-none">无图</div>'
+        var priceCell = (p.priceAmount == null || Number(p.priceAmount) <= 0)
+          ? '<span style="color:#aaa">仅积分</span>'
+          : escapeHtml(p.priceAmount) + ' 元'
+        var promoCell = p.promoStatus === 1
+          ? '<span class="badge badge-promo">促销</span>' + escapeHtml(p.promoPoints) + ' 积分' +
+            (p.promoAmount == null ? '' : ' + ' + escapeHtml(p.promoAmount) + ' 元') +
+            '<div class="promo-original">原：' + escapeHtml(p.pointsCost) + ' 积分' +
+            (p.priceAmount == null || Number(p.priceAmount) <= 0 ? '' : ' + ' + escapeHtml(p.priceAmount) + ' 元') + '</div>'
+          : '<span class="badge badge-off">未开启</span>'
+        tr.innerHTML =
+          '<td>' + p.id + '</td>' +
+          '<td>' + imgCell + '</td>' +
+          '<td>' + escapeHtml(p.name || '-') + '</td>' +
+          '<td>' + escapeHtml((p.description || '').slice(0, 30)) + '</td>' +
+          '<td>' + escapeHtml(p.pointsCost) + '</td>' +
+          '<td>' + priceCell + '</td>' +
+          '<td>' + promoCell + '</td>' +
+          '<td>' + (p.stock === -1 ? '不限' : escapeHtml(p.stock)) + '</td>' +
+          '<td>' + (p.status === 1 ? '上架' : '<span style="color:#aaa">下架</span>') + '</td>' +
+          '<td>' + (p.sortOrder || 0) + '</td>' +
+          '<td><button data-edit-pp="' + p.id + '">编辑</button> <button data-del-pp="' + p.id + '">删除</button></td>'
+        ppTbody.appendChild(tr)
+      })
+    }
+
+    function editProduct(p) {
+      var promoOn = p.promoStatus === 1
+      var imgPreview = p.imageUrl
+        ? '<img id="ep_img_preview" src="' + escapeHtml(p.imageUrl) + '" alt="预览">'
+        : '<img id="ep_img_preview" src="" alt="预览" style="display:none">'
+      var html = '<div class="field"><label>名称</label><input id="ep_name" value="' + escapeHtml(p.name) + '"></div>' +
+        '<div class="field"><label>描述</label><textarea id="ep_desc" rows="3">' + escapeHtml(p.description || '') + '</textarea></div>' +
+        '<div class="field"><label>所需积分</label><input id="ep_cost" type="number" value="' + p.pointsCost + '"></div>' +
+        '<div class="field"><label>金额（元，留空=仅积分兑换）</label><input id="ep_price" type="number" min="0" step="0.01" value="' + (p.priceAmount == null ? '' : escapeHtml(p.priceAmount)) + '"></div>' +
+        '<div class="field"><label>图片（上传到阿里云 OSS，无需填写 URL）</label>' +
+        '<div class="upload-row">' + imgPreview +
+        '<input id="ep_img_file" type="file" accept="image/*">' +
+        '<button id="ep_img_upload">上传图片</button>' +
+        '<span id="ep_img_hint" class="hint"></span></div>' +
+        '<input id="ep_img" type="hidden" value="' + escapeHtml(p.imageUrl || '') + '"></div>' +
+        '<div class="field"><label>促销</label><select id="ep_promo">' +
+        '<option value="0">关闭</option><option value="1">开启</option></select></div>' +
+        '<div id="ep_promo_fields" hidden>' +
+        '<div class="field"><label>促销积分</label><input id="ep_promo_points" type="number" min="1" value="' + (p.promoPoints == null ? '' : escapeHtml(p.promoPoints)) + '"></div>' +
+        '<div class="field"><label>促销金额（元，可留空）</label><input id="ep_promo_amount" type="number" min="0" step="0.01" value="' + (p.promoAmount == null ? '' : escapeHtml(p.promoAmount)) + '"></div>' +
+        '</div>' +
+        '<div class="field"><label>库存（-1=不限）</label><input id="ep_stock" type="number" value="' + p.stock + '"></div>' +
+        '<div class="field"><label>状态</label><select id="ep_status"><option value="1">上架</option><option value="0">下架</option></select></div>' +
+        '<div class="field"><label>排序</label><input id="ep_sort" type="number" value="' + (p.sortOrder || 0) + '"></div>'
+      var formDiv = document.getElementById('ppEditForm')
+      if (!formDiv) {
+        formDiv = document.createElement('div')
+        formDiv.id = 'ppEditForm'
+        formDiv.style.marginTop = '12px'
+        formDiv.style.padding = '12px'
+        formDiv.style.background = '#fafbfc'
+        formDiv.style.borderRadius = '6px'
+        pointProductsCard.appendChild(formDiv)
+      }
+      formDiv.innerHTML = html +
+        '<div class="row" style="margin-top: 8px;">' +
+        '<button id="ep_save" class="primary">保存</button>' +
+        '<button id="ep_cancel">取消</button></div>'
+      document.getElementById('ep_status').value = p.status
+      document.getElementById('ep_promo').value = promoOn ? '1' : '0'
+      document.getElementById('ep_promo_fields').hidden = !promoOn
+      document.getElementById('ep_promo').addEventListener('change', function () {
+        document.getElementById('ep_promo_fields').hidden = this.value !== '1'
+      })
+      document.getElementById('ep_img_upload').addEventListener('click', function () {
+        uploadProductImage()
+      })
+      document.getElementById('ep_save').addEventListener('click', function () { saveProduct(p.id) })
+      document.getElementById('ep_cancel').addEventListener('click', function () { formDiv.innerHTML = '' })
+      formDiv.scrollIntoView({ behavior: 'smooth' })
+    }
+
+    /** 上传商品图片到 OSS，成功后写入隐藏字段并刷新预览 */
+    function uploadProductImage() {
+      var fileInput = document.getElementById('ep_img_file')
+      var hintEl = document.getElementById('ep_img_hint')
+      var file = fileInput.files && fileInput.files[0]
+      if (!file) {
+        setHint(hintEl, '请先选择图片', 'err')
+        return
+      }
+      var formData = new FormData()
+      formData.append('file', file)
+      setHint(hintEl, '上传中…')
+      fetch(API_BASE + '/../../admin/points/upload', {
+        method: 'POST',
+        headers: { 'X-Vip-Admin-Token': token },
+        body: formData
+      }).then(function (resp) {
+        return resp.json().catch(function () {
+          return { code: resp.status, message: '响应解析失败（HTTP ' + resp.status + '）' }
+        })
+      }).then(function (resp) {
+        if (resp.code === 200 && resp.data) {
+          document.getElementById('ep_img').value = resp.data
+          var preview = document.getElementById('ep_img_preview')
+          preview.src = resp.data
+          preview.style.display = ''
+          setHint(hintEl, '上传成功', 'ok')
+        } else {
+          setHint(hintEl, resp.message || '上传失败', 'err')
+        }
+      }).catch(function (e) {
+        setHint(hintEl, '上传失败：' + e.message, 'err')
+      })
+    }
+
+    /** 金额字段：空字符串返回 null，非法返回 NaN 由调用方拦截 */
+    function parseAmount(raw) {
+      if (raw == null || String(raw).trim() === '') return null
+      var num = Number(raw)
+      return isNaN(num) ? NaN : num
+    }
+
+    function saveProduct(id) {
+      var promoStatus = parseInt(document.getElementById('ep_promo').value, 10)
+      var payload = {
+        id: id,
+        name: document.getElementById('ep_name').value.trim(),
+        description: document.getElementById('ep_desc').value,
+        pointsCost: parseInt(document.getElementById('ep_cost').value, 10),
+        priceAmount: parseAmount(document.getElementById('ep_price').value),
+        promoStatus: promoStatus,
+        promoPoints: promoStatus === 1 ? parseInt(document.getElementById('ep_promo_points').value, 10) : null,
+        promoAmount: promoStatus === 1 ? parseAmount(document.getElementById('ep_promo_amount').value) : null,
+        stock: parseInt(document.getElementById('ep_stock').value, 10),
+        imageUrl: document.getElementById('ep_img').value.trim(),
+        status: parseInt(document.getElementById('ep_status').value, 10),
+        sortOrder: parseInt(document.getElementById('ep_sort').value, 10) || 0
+      }
+      if (!payload.name) { alert('请填写名称'); return }
+      if (!(payload.pointsCost > 0)) { alert('所需积分必须大于 0'); return }
+      if (isNaN(payload.priceAmount)) { alert('金额填写有误'); return }
+      if (promoStatus === 1 && !(payload.promoPoints > 0)) { alert('开启促销时必须填写促销积分'); return }
+      if (promoStatus === 1 && isNaN(payload.promoAmount)) { alert('促销金额填写有误'); return }
+      var method = id ? 'PUT' : 'POST'
+      var url = id ? '/../../admin/points/products/' + id : '/../../admin/points/products'
+      request(url, { method: method, body: JSON.stringify(payload) }).then(function (resp) {
+        if (resp.code === 200) {
+          var formDiv = document.getElementById('ppEditForm')
+          if (formDiv) formDiv.innerHTML = ''
+          loadProducts()
+        } else {
+          alert('保存失败：' + (resp.message || ''))
+        }
+      })
+    }
+
+    ppTbody.addEventListener('click', function (e) {
+      var id = e.target.getAttribute('data-edit-pp')
+      var delId = e.target.getAttribute('data-del-pp')
+      if (id) {
+        var p = ppProducts.find(function (x) { return String(x.id) === id })
+        if (p) editProduct(p)
+      } else if (delId) {
+        if (!confirm('确定删除商品？')) return
+        request('/../../admin/points/products/' + delId, { method: 'DELETE' }).then(function (resp) {
+          if (resp.code === 200) loadProducts()
+          else alert('删除失败：' + (resp.message || ''))
+        })
+      }
+    })
+
+    // ============== 情侣任务管理 ==============
+    var toggleCoupleTasksBtn = document.getElementById('toggleCoupleTasksBtn')
+    var coupleTasksCard = document.getElementById('coupleTasksCard')
+    var ctTbody = document.getElementById('ctTbody')
+    var ctAddBtn = document.getElementById('ctAddBtn')
+    var ctReloadBtn = document.getElementById('ctReloadBtn')
+    var ctHint = document.getElementById('ctHint')
+    var ctTasks = []
+    toggleCoupleTasksBtn.addEventListener('click', function () {
+      coupleTasksCard.hidden = !coupleTasksCard.hidden
+      if (!coupleTasksCard.hidden) loadTasks()
+    })
+    ctReloadBtn.addEventListener('click', loadTasks)
+    ctAddBtn.addEventListener('click', function () {
+      editTask({ id: null, content: '', description: '', icon: '💌', points: 20, status: 1, sortOrder: 0, completeType: 'message_send', periodType: 'daily', claimRequired: 1 })
+    })
+
+    /** 完成方式枚举（与后端 PointsConstant 对应） */
+    var COMPLETE_TYPE_LIST = [
+      { value: 'message_send', text: '发送消息（系统自动识别）' },
+      { value: 'photo_upload', text: '上传照片（系统自动识别）' },
+      { value: 'date_plan_create', text: '新建约会计划（系统自动识别）' },
+      { value: 'manual', text: '手动（不自动识别）' }
+    ]
+    var PERIOD_TYPE_LIST = [
+      { value: 'daily', text: '每日' },
+      { value: 'weekly', text: '每周' },
+      { value: 'monthly', text: '每月' }
+    ]
+
+    function optionListHtml(list, selected) {
+      return list.map(function (item) {
+        return '<option value="' + item.value + '"' + (item.value === selected ? ' selected' : '') + '>' + item.text + '</option>'
+      }).join('')
+    }
+
+    function completeTypeText(value) {
+      var hit = COMPLETE_TYPE_LIST.find(function (x) { return x.value === value })
+      return hit ? hit.text : '手动（不自动识别）'
+    }
+
+    function periodTypeText(value) {
+      var hit = PERIOD_TYPE_LIST.find(function (x) { return x.value === value })
+      return hit ? hit.text : '每日'
+    }
+
+    function loadTasks() {
+      ctTasks = []
+      request('/../../admin/points/tasks').then(function (resp) {
+        if (resp.code === 200 && Array.isArray(resp.data)) {
+          ctTasks = resp.data
+          renderTasks()
+          setHint(ctHint, '共 ' + ctTasks.length + ' 个任务', 'ok')
+        } else {
+          setHint(ctHint, '加载失败：' + (resp.message || ''), 'err')
+        }
+      })
+    }
+
+    function renderTasks() {
+      ctTbody.innerHTML = ''
+      ctTasks.forEach(function (t) {
+        var claimText = t.claimRequired === 0 ? '完成即发放' : '手动领取'
+        var tr = document.createElement('tr')
+        tr.innerHTML =
+          '<td>' + t.id + '</td>' +
+          '<td>' + escapeHtml(t.content || '-') + '</td>' +
+          '<td>' + escapeHtml((t.description || '').slice(0, 30)) + '</td>' +
+          '<td>' + escapeHtml(t.icon || '-') + '</td>' +
+          '<td>' + escapeHtml(t.points) + '</td>' +
+          '<td>' + escapeHtml(completeTypeText(t.completeType)) + '</td>' +
+          '<td>' + escapeHtml(periodTypeText(t.periodType)) + '</td>' +
+          '<td>' + claimText + '</td>' +
+          '<td>' + (t.status === 1 ? '启用' : '<span style="color:#aaa">禁用</span>') + '</td>' +
+          '<td>' + (t.sortOrder || 0) + '</td>' +
+          '<td><button data-edit-ct="' + t.id + '">编辑</button> <button data-del-ct="' + t.id + '">删除</button></td>'
+        ctTbody.appendChild(tr)
+      })
+    }
+
+    function editTask(t) {
+      var html = '<div class="field"><label>内容</label><input id="et_content" value="' + escapeHtml(t.content) + '"></div>' +
+        '<div class="field"><label>描述</label><textarea id="et_desc" rows="3">' + escapeHtml(t.description || '') + '</textarea></div>' +
+        '<div class="field"><label>图标（emoji）</label><input id="et_icon" value="' + escapeHtml(t.icon || '') + '" maxlength="8"></div>' +
+        '<div class="field"><label>积分</label><input id="et_points" type="number" value="' + t.points + '"></div>' +
+        '<div class="field"><label>完成方式（系统自动识别的行为）</label><select id="et_complete">' +
+        optionListHtml(COMPLETE_TYPE_LIST, t.completeType) + '</select></div>' +
+        '<div class="field"><label>周期</label><select id="et_period">' +
+        optionListHtml(PERIOD_TYPE_LIST, t.periodType) + '</select></div>' +
+        '<div class="field"><label>领取方式</label><select id="et_claim">' +
+        '<option value="1">完成后手动领取积分</option><option value="0">完成即自动发放</option></select></div>' +
+        '<div class="field"><label>状态</label><select id="et_status"><option value="1">启用</option><option value="0">禁用</option></select></div>' +
+        '<div class="field"><label>排序</label><input id="et_sort" type="number" value="' + (t.sortOrder || 0) + '"></div>'
+      var formDiv = document.getElementById('ctEditForm')
+      if (!formDiv) {
+        formDiv = document.createElement('div')
+        formDiv.id = 'ctEditForm'
+        formDiv.style.marginTop = '12px'
+        formDiv.style.padding = '12px'
+        formDiv.style.background = '#fafbfc'
+        formDiv.style.borderRadius = '6px'
+        coupleTasksCard.appendChild(formDiv)
+      }
+      formDiv.innerHTML = html +
+        '<div class="row" style="margin-top: 8px;">' +
+        '<button id="et_save" class="primary">保存</button>' +
+        '<button id="et_cancel">取消</button></div>'
+      document.getElementById('et_status').value = t.status
+      document.getElementById('et_claim').value = t.claimRequired === 0 ? '0' : '1'
+      document.getElementById('et_save').addEventListener('click', function () { saveTask(t.id) })
+      document.getElementById('et_cancel').addEventListener('click', function () { formDiv.innerHTML = '' })
+      formDiv.scrollIntoView({ behavior: 'smooth' })
+    }
+
+    function saveTask(id) {
+      var payload = {
+        id: id,
+        content: document.getElementById('et_content').value.trim(),
+        description: document.getElementById('et_desc').value,
+        icon: document.getElementById('et_icon').value.trim(),
+        points: parseInt(document.getElementById('et_points').value, 10),
+        completeType: document.getElementById('et_complete').value,
+        periodType: document.getElementById('et_period').value,
+        claimRequired: parseInt(document.getElementById('et_claim').value, 10),
+        status: parseInt(document.getElementById('et_status').value, 10),
+        sortOrder: parseInt(document.getElementById('et_sort').value, 10) || 0
+      }
+      if (!payload.content) { alert('请填写任务内容'); return }
+      if (isNaN(payload.points) || payload.points < 0) { alert('积分不能为负'); return }
+      var method = id ? 'PUT' : 'POST'
+      var url = id ? '/../../admin/points/tasks/' + id : '/../../admin/points/tasks'
+      request(url, { method: method, body: JSON.stringify(payload) }).then(function (resp) {
+        if (resp.code === 200) {
+          var formDiv = document.getElementById('ctEditForm')
+          if (formDiv) formDiv.innerHTML = ''
+          loadTasks()
+        } else {
+          alert('保存失败：' + (resp.message || ''))
+        }
+      })
+    }
+
+    ctTbody.addEventListener('click', function (e) {
+      var id = e.target.getAttribute('data-edit-ct')
+      var delId = e.target.getAttribute('data-del-ct')
+      if (id) {
+        var t = ctTasks.find(function (x) { return String(x.id) === id })
+        if (t) editTask(t)
+      } else if (delId) {
+        if (!confirm('确定删除任务？')) return
+        request('/../../admin/points/tasks/' + delId, { method: 'DELETE' }).then(function (resp) {
+          if (resp.code === 200) loadTasks()
+          else alert('删除失败：' + (resp.message || ''))
+        })
+      }
+    })
+
   </script>
 </body>
 </html>

@@ -7,6 +7,12 @@
       </template>
     </van-nav-bar>
 
+    <button class="gallery-entry" @click="router.push('/memory-gallery')">
+      <span class="gallery-entry-icon" aria-hidden="true">✦</span>
+      <span class="gallery-entry-copy"><strong>回忆展览</strong><small>换个角度，重温我们的每一刻</small></span>
+      <van-icon name="arrow" />
+    </button>
+
     <!-- 相册列表 -->
     <div class="albums-content">
       <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
@@ -301,6 +307,26 @@ function confirmDelete(album: Album) {
 </script>
 
 <style scoped lang="scss">
+.gallery-entry {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: calc(100% - 24px);
+  margin: 16px 12px 4px;
+  padding: 18px;
+  border: 1px solid #e8dfd3;
+  border-radius: $radius-lg;
+  background: linear-gradient(120deg, #f9f0e3, #fffaf4);
+  color: #795b42;
+  text-align: left;
+  cursor: pointer;
+
+  .gallery-entry-icon { font-size: 28px; }
+  .gallery-entry-copy { flex: 1; }
+  strong { display: block; font-size: 16px; font-weight: 600; }
+  small { display: block; margin-top: 6px; font-size: 12px; color: #a18b76; }
+}
+
 .albums-page {
   min-height: 100vh;
   background: $bg-color;

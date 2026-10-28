@@ -5,8 +5,8 @@ import java.util.List;
 /**
  * VIP 会员模块常量
  * <p>
- * 档位定义（等级 / 名称 / 价格 / 时长 / 权益）集中在此维护，
- * 后端开通与前端展示共用同一份数据，调整价格或权益只需改这里。
+ * 档位定义（等级 / 名称 / 时长 / 权益）集中在此维护，价格统一落库到 vip_pricing 表，
+ * 通过 {@code VipPricingService} 读取。调整价格无需改动代码或重启服务。
  */
 public final class VipConstant {
 
@@ -34,11 +34,20 @@ public final class VipConstant {
     /** 普通用户名称 */
     public static final String LEVEL_NORMAL_NAME = "普通";
 
-    /** 专属顾问邮箱：当前唯一可用的下单渠道 */
-    public static final String ADVISOR_EMAIL = "xjl20041115@126.com";
-
     /** 顾问开通接口的密钥请求头，取值来自配置 vip.admin-token */
     public static final String ADMIN_TOKEN_HEADER = "X-Vip-Admin-Token";
+
+    /** vip_pricing 表的业务编码：VIP 卡 */
+    public static final String PRODUCT_CODE_VIP_WEEK = "vip_week";
+    public static final String PRODUCT_CODE_VIP_MONTH = "vip_month";
+    public static final String PRODUCT_CODE_VIP_QUARTER = "vip_quarter";
+    public static final String PRODUCT_CODE_VIP_YEAR = "vip_year";
+    public static final String PRODUCT_CODE_VIP_FOREVER = "vip_forever";
+
+    /** vip_pricing 表的业务编码：次卡 */
+    public static final String PRODUCT_CODE_QUOTA_MAKEOVER = "quota_makeover";
+    public static final String PRODUCT_CODE_QUOTA_DATE_PLAN = "quota_date_plan";
+    public static final String PRODUCT_CODE_QUOTA_WISHLIST = "quota_wishlist";
 
     /** 订单状态：待开通（已下单，等顾问收款后开通） */
     public static final int ORDER_STATUS_PENDING = 0;
@@ -49,52 +58,78 @@ public final class VipConstant {
     /** 订单状态：已取消（用户重新下单时，旧的待开通订单自动取消） */
     public static final int ORDER_STATUS_CANCELED = 2;
 
+    /** 订单类型：VIP 卡 */
+    public static final int ORDER_TYPE_VIP = 1;
+
+    /** 订单类型：次卡 */
+    public static final int ORDER_TYPE_QUOTA = 2;
+
+    /** 次卡配额类型：AI 化妆建议 */
+    public static final int QUOTA_PRODUCT_MAKEOVER = 1;
+
+    /** 次卡配额类型：AI 约会建议 */
+    public static final int QUOTA_PRODUCT_DATE_PLAN = 2;
+
+    /** 次卡配额类型：AI 心愿建议 */
+    public static final int QUOTA_PRODUCT_WISHLIST = 3;
+
     /**
      * 档位定义
      *
-     * @param level        等级，与 user.vip_level 对应
-     * @param name         档位名称
-     * @param priceYuan    价格（元）
-     * @param durationDays 时长（天），null 表示永久
-     * @param benefits     该档位权益文案
+     * @param level         等级，与 user.vip_level 对应
+     * @param name          档位名称
+     * @param durationDays  时长（天），null 表示永久
+     * @param benefits      该档位权益文案
      * @param makeoverBonus AI 化妆建议每月额外次数，null 表示不限量
      */
-    public record Tier(int level, String name, int priceYuan, Integer durationDays, List<String> benefits,
+    public record Tier(int level, String name, Integer durationDays, List<String> benefits,
                        Integer makeoverBonus) {
 
         /** 是否永久卡 */
         public boolean permanent() {
             return durationDays == null;
         }
+
+        /** 通过 vipLevel 取 productCode */
+        public String productCode() {
+            return switch (level) {
+                case LEVEL_WEEK -> PRODUCT_CODE_VIP_WEEK;
+                case LEVEL_MONTH -> PRODUCT_CODE_VIP_MONTH;
+                case LEVEL_QUARTER -> PRODUCT_CODE_VIP_QUARTER;
+                case LEVEL_YEAR -> PRODUCT_CODE_VIP_YEAR;
+                case LEVEL_FOREVER -> PRODUCT_CODE_VIP_FOREVER;
+                default -> null;
+            };
+        }
     }
 
     /**
      * 全部档位（按等级升序）
      * <p>
-     * 价格与权益为运营初稿，调整只改这里。
+     * 价格统一从 vip_pricing 读取；这里只保留名称、时长、权益等静态定义。
      */
     public static final List<Tier> TIERS = List.of(
-            new Tier(LEVEL_WEEK, "周卡", 6, 7, List.of(
+            new Tier(LEVEL_WEEK, "周卡", 7, List.of(
                     "情侣双人共享，伴侣同享全部权益",
                     "专属 VIP 身份标识",
                     "AI 化妆建议高清出图",
                     "AI 约会策划不限次"), 2),
-            new Tier(LEVEL_MONTH, "月卡", 18, 30, List.of(
+            new Tier(LEVEL_MONTH, "月卡", 30, List.of(
                     "包含周卡全部权益",
                     "AI 情侣对话不限次",
                     "高清原图导出，无水印",
                     "历史记录永久保存"), 6),
-            new Tier(LEVEL_QUARTER, "季卡", 48, 90, List.of(
+            new Tier(LEVEL_QUARTER, "季卡", 90, List.of(
                     "包含月卡全部权益",
                     "高级海报模板库",
                     "AI 高峰时段优先队列",
                     "云端相册扩容至 20GB"), 9),
-            new Tier(LEVEL_YEAR, "年卡", 168, 365, List.of(
+            new Tier(LEVEL_YEAR, "年卡", 365, List.of(
                     "包含季卡全部权益",
                     "年度恋爱报告",
                     "云端相册扩容至 100GB",
                     "专属顾问优先响应"), 13),
-            new Tier(LEVEL_FOREVER, "永久卡", 398, null, List.of(
+            new Tier(LEVEL_FOREVER, "永久卡", null, List.of(
                     "包含年卡全部权益",
                     "后续新增 VIP 功能全部可用",
                     "永久有效，无需续费",
@@ -147,5 +182,35 @@ public final class VipConstant {
     public static String levelName(Integer level) {
         Tier tier = findTier(level);
         return tier != null ? tier.name() : LEVEL_NORMAL_NAME;
+    }
+
+    /**
+     * 次卡配额类型对应名称
+     */
+    public static String quotaProductName(Integer quotaType) {
+        if (quotaType == null) {
+            return "";
+        }
+        return switch (quotaType) {
+            case QUOTA_PRODUCT_MAKEOVER -> "AI 化妆建议";
+            case QUOTA_PRODUCT_DATE_PLAN -> "AI 约会建议";
+            case QUOTA_PRODUCT_WISHLIST -> "AI 心愿建议";
+            default -> "未知";
+        };
+    }
+
+    /**
+     * 次卡配额类型对应业务编码
+     */
+    public static String quotaProductCode(Integer quotaType) {
+        if (quotaType == null) {
+            return null;
+        }
+        return switch (quotaType) {
+            case QUOTA_PRODUCT_MAKEOVER -> PRODUCT_CODE_QUOTA_MAKEOVER;
+            case QUOTA_PRODUCT_DATE_PLAN -> PRODUCT_CODE_QUOTA_DATE_PLAN;
+            case QUOTA_PRODUCT_WISHLIST -> PRODUCT_CODE_QUOTA_WISHLIST;
+            default -> null;
+        };
     }
 }

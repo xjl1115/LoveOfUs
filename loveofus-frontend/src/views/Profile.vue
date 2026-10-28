@@ -59,6 +59,26 @@
         <span class="vip-entry-action">{{ userVipLevel > 0 ? '续费' : '立即升级' }}</span>
       </div>
 
+      <!-- 积分与任务入口 -->
+      <div class="entry-list">
+        <div class="entry-card" @click="$router.push('/points-shop')">
+          <span class="entry-icon">💎</span>
+          <div class="entry-info">
+            <div class="entry-title">积分商城</div>
+            <div class="entry-sub">用积分兑换好礼</div>
+          </div>
+          <van-icon name="arrow" class="entry-arrow" />
+        </div>
+        <div class="entry-card" @click="$router.push('/couple-task')">
+          <span class="entry-icon">🎯</span>
+          <div class="entry-info">
+            <div class="entry-title">情侣任务</div>
+            <div class="entry-sub">完成任务赚积分</div>
+          </div>
+          <van-icon name="arrow" class="entry-arrow" />
+        </div>
+      </div>
+
       <!-- 统计卡片 -->
       <div class="stats-card">
         <div class="stats-item">
@@ -77,6 +97,11 @@
           <span class="stats-value">{{ daysTogether }}</span>
           <span class="stats-label">天数</span>
         </div>
+      </div>
+
+      <!-- 每日签到 -->
+      <div class="checkin-section">
+        <CheckInCalendar />
       </div>
 
       <!-- 纪念日区域 -->
@@ -262,6 +287,7 @@
           </template>
         </van-cell>
         <van-cell title="账户设置" icon="setting-o" is-link @click="$router.push('/account-settings')" />
+        <van-cell title="我的地址" icon="location-o" is-link @click="$router.push('/addresses')" />
         <van-cell title="消息通知" icon="bell-o" is-link @click="showNotificationSettings" />
 
         <van-cell title="AI 约会策划" icon="like-o" is-link @click="$router.push('/date-plan')" />
@@ -581,6 +607,7 @@ import { ref, computed, onMounted, onActivated, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showConfirmDialog, showDialog, showToast, showImagePreview } from 'vant'
 import BottomTab from '@/components/BottomTab.vue'
+import CheckInCalendar from '@/components/CheckInCalendar.vue'
 import { useUserStore } from '@/stores/user'
 import { getUserInfo, getUserStats, generateBindCode as apiGenerateBindCode, getBindCode, bindPartner, unbindPartner, deleteAccount, getNotificationSettings, updateNotificationSettings } from '@/api/user'
 import { getTimelinePhotos } from '@/api/photo'
@@ -1335,6 +1362,10 @@ function logout() {
 .profile-content {
   padding: 16px;
   padding-bottom: 30px;
+}
+
+.checkin-section {
+  margin-bottom: 16px;
 }
 
 .user-card {
@@ -2479,6 +2510,57 @@ function logout() {
     background: linear-gradient(135deg, #ffe9a8 0%, #f5d173 100%);
     border-radius: 12px;
     padding: 5px 12px;
+  }
+}
+
+.entry-list {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.entry-card {
+  flex: 1;
+  min-width: 0;
+  background: #fff;
+  border-radius: $radius-lg;
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: $shadow-sm;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+
+  &:active {
+    transform: scale(0.98);
+  }
+
+  .entry-icon {
+    font-size: 22px;
+    line-height: 1;
+  }
+
+  .entry-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .entry-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #23272f;
+  }
+
+  .entry-sub {
+    font-size: 11px;
+    color: #8a9099;
+    margin-top: 2px;
+  }
+
+  .entry-arrow {
+    flex: none;
+    color: #8a9099;
   }
 }
 </style>

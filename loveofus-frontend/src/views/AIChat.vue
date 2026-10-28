@@ -121,8 +121,12 @@
       </div>
     </div>
 
-    <!-- 占位元素：与输入区等高，确保消息列表滚动到底时不被输入框遮挡 -->
-    <div class="input-bar-placeholder" aria-hidden="true" />
+    <!-- 占位元素：与输入区等高，确保消息列表滚动到底时不被输入框遮挡（有预览条时再额外预留） -->
+    <div
+      class="input-bar-placeholder"
+      :class="{ 'has-preview': pendingPreviews.length > 0 }"
+      aria-hidden="true"
+    />
   </div>
 </template>
 
@@ -134,6 +138,7 @@ import MessageBubble from '@/components/MessageBubble.vue'
 import QuickSuggestions, { type QuickQuestion } from '@/components/QuickSuggestions.vue'
 import { getNotificationSSE } from '@/api/systemMessage'
 import request from '@/utils/request'
+import { getPhotoDetail } from '@/api/photo'
 import {
   getSessionId,
   newSession,
@@ -144,7 +149,6 @@ import {
   chatOnce,
   getAiSessionDetail,
   type ChatMessage,
-  type ChatImageItem,
   type ExportCardPayload
 } from '@/api/aiChat'
 
@@ -173,6 +177,8 @@ interface PendingPreview {
   url: string
   /** 是否为本地 blob URL（仅本地状态，组件卸载时需要 revoke） */
   isLocal: boolean
+  /** 待发送文件：仅选中未上传时有值，点"发送"时才上传 OSS */
+  file?: File
 }
 const pendingPreviews = ref<PendingPreview[]>([])
 
@@ -192,7 +198,11 @@ const showSuggestions = computed(
 )
 
 const canSend = computed(
-  () => !aiDisabled.value && !loading.value && inputText.value.trim().length > 0
+  () =>
+    !aiDisabled.value &&
+    !loading.value &&
+    !uploading.value &&
+    (inputText.value.trim().length > 0 || pendingPreviews.value.some((p) => p.file))
 )
 
 // ==================== 头像/时间显示策略 ====================
@@ -400,15 +410,15 @@ function removePreview(idx: number) {
   pendingPreviews.value.splice(idx, 1)
 }
 
-/** 文件选择变化：依次上传，缩略图插入用户消息流 */
-async function onFileChange(ev: Event) {
+/** 文件选择变化：仅加入本地待发送预览，点"发送"时才上传 OSS */
+function onFileChange(ev: Event) {
   const input = ev.target as HTMLInputElement
-  const files = input.files
+  // 必须先转成数组：input.value = '' 会清空同一个 FileList，之后再取就取不到文件
+  const list = input.files ? Array.from(input.files) : []
   // 立刻清空 value，保证下次选择同一文件也能触发 change
   input.value = ''
-  if (!files || files.length === 0) return
+  if (list.length === 0) return
 
-  const list = Array.from(files)
   if (list.length > MAX_PHOTO_COUNT) {
     showToast(`一次最多上传 ${MAX_PHOTO_COUNT} 张`)
     return
@@ -425,34 +435,33 @@ async function onFileChange(ev: Event) {
     }
   }
 
-  uploading.value = true
-  showLoadingToast({ message: `上传中 0/${list.length}`, forbidClick: true })
-  let success = 0
-  let fail = 0
-  for (let i = 0; i < list.length; i++) {
-    const f = list[i]
-    // 用本地预览 URL 先占位（上传前立刻可见，避免长时间空白）
-    const localUrl = URL.createObjectURL(f)
-    // 同步把本地预览追加到输入框上方预览条（选中即显示，不依赖上传结果）
-    pendingPreviews.value.push({ url: localUrl, isLocal: true })
-    const localItem: ChatImageItem = {
-      imageUrl: localUrl
-    }
-    const userMsg: ChatMessage = {
-      id: cryptoId(),
-      role: 'user',
-      content: list.length === 1 ? '📷 我上传了一张照片' : `📷 我上传了 ${list.length} 张照片`,
-      createdAt: Date.now(),
-      images: [localItem]
-    }
-    messages.value.push(userMsg)
-    scrollToBottom()
+  // 仅本地预览，不发起上传
+  for (const f of list) {
+    pendingPreviews.value.push({ url: URL.createObjectURL(f), isLocal: true, file: f })
+  }
+}
 
+/**
+ * 发送阶段上传待发送图片（用户点"发送"后才上传 OSS）：
+ * - 成功的从预览条移除，由 onSend 插入用户消息
+ * - 失败的保留在预览条里，用户可再次点"发送"重试
+ */
+async function uploadPendingPhotos() {
+  const pendings = pendingPreviews.value.filter((p) => p.file)
+  const uploaded: { photoId?: number | string; localUrl: string }[] = []
+  if (pendings.length === 0) return { uploaded, failed: 0 }
+
+  uploading.value = true
+  let failed = 0
+  showLoadingToast({ message: `上传中 0/${pendings.length}`, forbidClick: true })
+  for (let i = 0; i < pendings.length; i++) {
+    const item = pendings[i]
+    const file = item.file as File
     try {
       const fd = new FormData()
       // 后端 /photos/upload 约定：files(复数)、takenDate(必填)，其它字段可选。
       // 仅传 file + takenDate 即可走通最小上传路径；完整元数据请用户去"上传"页填写。
-      fd.append('files', f)
+      fd.append('files', file)
       fd.append('takenDate', new Date().toISOString().slice(0, 10))
 
       const result: PhotoUploadVO = await request.post<PhotoUploadVO>('/photos/upload', fd, {
@@ -460,58 +469,74 @@ async function onFileChange(ev: Event) {
       })
       const photoId = result?.photoIds?.[0]
       if (photoId) {
-        // 用服务端 photoId 替换本地预览（详情页/AI 工具可用 photoId）
-        const idx = messages.value.findIndex((m) => m.id === userMsg.id)
-        if (idx >= 0) {
-          const imgs = messages.value[idx].images || []
-          if (imgs[0]) imgs[0].photoId = photoId
+        // 回查照片详情，用可持久化的 OSS 地址落库（本地 blob 地址刷新页面后会失效）
+        let displayUrl = item.url
+        try {
+          const detail = await getPhotoDetail(Number(photoId))
+          if (detail?.storagePath) displayUrl = detail.storagePath
+        } catch (e) {
+          console.warn('[AIChat] 回查照片地址失败，暂用本地预览', e)
         }
-        // 预览已在选中时 push 到 pendingPreviews；上传成功仅更新 photoId，不重复 push。
-        success++
-      } else {
-        // 上传返回失败 → 释放本地 blob URL，避免泄漏
-        URL.revokeObjectURL(localUrl)
-        // 同时移除对应的预览条条目（按 url 匹配）
-        const pIdx = pendingPreviews.value.findIndex((p) => p.url === localUrl)
+        uploaded.push({ photoId, localUrl: displayUrl })
+        // 上传成功：从预览条移除
+        const pIdx = pendingPreviews.value.findIndex((p) => p.url === item.url)
         if (pIdx >= 0) pendingPreviews.value.splice(pIdx, 1)
-        fail++
+        // 已拿到服务端地址时释放本地 blob；否则保留给消息气泡继续展示
+        if (displayUrl !== item.url) URL.revokeObjectURL(item.url)
+      } else {
+        failed++
       }
     } catch (e) {
       console.warn('[AIChat] 上传照片失败', e)
-      // 上传失败时移除占位消息，避免脏数据
-      const idx = messages.value.findIndex((m) => m.id === userMsg.id)
-      if (idx >= 0) messages.value.splice(idx, 1)
-      // 释放本地 blob URL，避免内存泄漏
-      URL.revokeObjectURL(localUrl)
-      // 同步移除预览条条目
-      const pIdx = pendingPreviews.value.findIndex((p) => p.url === localUrl)
-      if (pIdx >= 0) pendingPreviews.value.splice(pIdx, 1)
-      fail++
+      failed++
     }
-    showLoadingToast({ message: `上传中 ${i + 1}/${list.length}`, forbidClick: true })
+    showLoadingToast({ message: `上传中 ${i + 1}/${pendings.length}`, forbidClick: true })
   }
   closeToast()
   uploading.value = false
-  if (fail > 0) {
-    showToast(`上传完成：${success} 张成功，${fail} 张失败`)
-  } else if (success > 0) {
-    showToast(`已上传 ${success} 张照片`)
-  }
-  saveHistory(messages.value)
+  return { uploaded, failed }
 }
 
 async function onSend() {
   const text = inputText.value.trim()
-  if (!text || loading.value) return
+  const hasPendingFiles = pendingPreviews.value.some((p) => p.file)
+  if ((!text && !hasPendingFiles) || loading.value || uploading.value) return
 
-  // 1. 推入用户消息
-  const userMsg: ChatMessage = {
-    id: cryptoId(),
-    role: 'user',
-    content: text,
-    createdAt: Date.now()
+  // 1. 用户点"发送"后才把待发送图片上传 OSS
+  const { uploaded, failed } = hasPendingFiles
+    ? await uploadPendingPhotos()
+    : { uploaded: [] as { photoId?: number | string; localUrl: string }[], failed: 0 }
+  if (failed > 0) {
+    showToast(`${failed} 张图片上传失败，可再次点击发送重试`)
   }
-  messages.value.push(userMsg)
+  if (!text && uploaded.length === 0) {
+    // 只选了图片且全部上传失败：不发起 AI 请求
+    return
+  }
+
+  // 2. 本次上传的图片合成一条用户消息
+  const attachMsg: ChatMessage | null = uploaded.length
+    ? {
+        id: cryptoId(),
+        role: 'user',
+        content:
+          uploaded.length === 1 ? '📷 我上传了一张照片' : `📷 我上传了 ${uploaded.length} 张照片`,
+        createdAt: Date.now(),
+        images: uploaded.map((u) => ({ imageUrl: u.localUrl, photoId: u.photoId }))
+      }
+    : null
+  if (attachMsg) messages.value.push(attachMsg)
+
+  // 3. 文本消息（无文字时用图片消息文案作为提问）
+  const prompt = text || (attachMsg ? attachMsg.content : '')
+  if (text) {
+    messages.value.push({
+      id: cryptoId(),
+      role: 'user',
+      content: text,
+      createdAt: Date.now()
+    })
+  }
   inputText.value = ''
   scrollToBottom()
   loading.value = true
@@ -532,7 +557,7 @@ async function onSend() {
   let sseOk = false
 
   cancelStream = chatStream(
-    { sessionId, message: text },
+    { sessionId, message: prompt },
     {
       // 长思考/长输出场景允许拉长 SSE 等待；服务端 SseEmitter 30 分钟
       timeoutMs: 30 * 60 * 1000
@@ -583,7 +608,7 @@ async function onSend() {
       // 流式失败 -> 降级非流式
       if (!sseOk) {
         try {
-          const resp = await chatOnce({ sessionId, message: text })
+          const resp = await chatOnce({ sessionId, message: prompt })
           const idx = messages.value.findIndex((m) => m.id === aiMsg.id)
           if (idx >= 0) {
             messages.value[idx] = {
@@ -672,7 +697,7 @@ async function onSend() {
   display: flex;
   flex-direction: column; // 关键：纵向布局，让 .preview-strip 自然排在 input 行之上
   gap: 6px;
-  padding: 8px 12px;
+  padding: 10px 12px;
   padding-bottom: calc(8px + env(safe-area-inset-bottom));
   background: #fff;
   border-top: 1px solid $border-color;
@@ -735,8 +760,13 @@ async function onSend() {
 .input-bar-placeholder {
   flex-shrink: 0;
   // 输入区最小高度约 52px（8 上下 padding + 36 按钮高度），再加安全区
-  // 额外预留 80px 给 .preview-strip（72px + 6px gap），即使没有预览条也不影响视觉
-  min-height: calc(52px + env(safe-area-inset-bottom) + 86px);
+  min-height: calc(52px + env(safe-area-inset-bottom));
+
+  // 仅当预览条展示时才额外预留 72px（预览条 66px + 6px gap，已扣除预览条自身的负外边距）
+  // 否则输入框上方会常驻一条空白带，看起来像"空的图片预览区"
+  &.has-preview {
+    min-height: calc(52px + env(safe-area-inset-bottom) + 72px);
+  }
 }
 
 .nav-icon {
@@ -755,10 +785,10 @@ async function onSend() {
   flex-shrink: 0;
   width: calc(100% + 24px); // 抵消 input-bar 的左右 padding (12+12)，让预览条横跨整宽
   margin: -8px -12px 0; // 抵消 input-bar 的上 padding 和左右 padding，让预览条贴到 input-bar 顶部
-  background: var(--bg-elevated, #fafafa);
-  border-top: 1px solid var(--border-color, #ebedf0);
-  border-bottom: 1px solid var(--border-color, #ebedf0);
-  padding: 8px 12px;
+  // 继承 .input-bar 的 #fff 背景，让预览条视觉上属于输入栏
+  // 底部 1px 浅色分隔线把预览条和输入行区分开
+  border-bottom: 1px solid #ebedf0;
+  padding: 10px 12px;
 }
 
 .preview-strip-inner {
@@ -777,12 +807,12 @@ async function onSend() {
 .preview-thumb {
   position: relative;
   flex-shrink: 0;
-  width: 56px;
-  height: 56px;
+  width: 64px;
+  height: 64px;
   border-radius: 8px;
   overflow: hidden;
-  background: #f7f8fa;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  background: #f0f0f0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
 
   img {
     width: 100%;

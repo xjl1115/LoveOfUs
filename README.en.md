@@ -36,7 +36,7 @@ Tongyi Qianwen (DashScope) through LangChain4j. Production runs on Nginx + Docke
 | Layer | Choices |
 |-------|---------|
 | Backend | Spring Boot 4.0.6 · Java 25 · Spring Security + JWT (jjwt 0.12.5) · MyBatis 4.0.1 + PageHelper · WebSocket · Spring Mail · Actuator · springdoc-openapi 2.2.0 · iText 7.2.6 |
-| AI | LangChain4j 1.18.0 · langchain4j-community-dashscope 1.19.0-beta29 · dashscope-sdk-java 2.22.31 · Tongyi Qianwen `qwen3.7-flash` (chat/multimodal) · `wanx2.1-imageedit` (image editing) |
+| AI | LangChain4j 1.18.0 · langchain4j-community-dashscope 1.19.0-beta29 · dashscope-sdk-java 2.22.31 · Tongyi Qianwen `qwen3.7-flash` (chat/multimodal) · `wan2.6-image` (image editing) |
 | Frontend | Vue 3.4 · TypeScript 5.4 · Vite 5 · Pinia · Vue Router 4 · Vant 4 · ECharts 5 · Sass · axios · dayjs · vue-virtual-scroller · html2canvas · qrcode · amfe-flexible + postcss-pxtorem |
 | Data and storage | MySQL 8/9 · Redis 7 · Alibaba Cloud OSS in production, local disk when `file.storage=local` |
 | Deployment | Nginx 1.28 (reverse proxy, static hosting, unbuffered SSE, WebSocket upgrade) · Docker Compose (MySQL + Redis + backend + frontend) |
@@ -195,7 +195,7 @@ npm run build            # output in dist/
 | `DASHSCOPE_API_KEY` | empty | Tongyi Qianwen API key, required for AI features |
 | `DASHSCOPE_MODEL` | `qwen3.7-flash-2026-07-15` | Chat and tool-calling model |
 | `DASHSCOPE_MAKEOVER_API_KEY` / `DASHSCOPE_MAKEOVER_MODEL` | falls back to `DASHSCOPE_API_KEY` | Model overrides for makeover advice |
-| `DASHSCOPE_MAKEOVER_IMAGE_MODEL` | `wanx2.1-imageedit` | Model used to generate the restyled image |
+| `DASHSCOPE_MAKEOVER_IMAGE_MODEL` | `wan2.6-image` | Model used to generate the restyled image |
 | `MAKEOVER_MONTHLY_FREE_QUOTA` | `3` | Free makeover requests per account per month |
 | `VIP_ADMIN_TOKEN` | empty | Advisor activation key (header `X-Vip-Admin-Token`); the endpoint returns 403 when unset |
 | `VIP_PUBLIC_BASE_URL` | `http://localhost:8080` | Public base URL used to build the activation command inside advisor emails |
@@ -302,7 +302,7 @@ A two-stage asynchronous pipeline whose task state machine is `0 pending / 1 ana
 
 1. **Analysis**: a multimodal model reads the portrait and returns face shape, skin tone and facial features together with
    scene-specific styling advice (makeup, hair, outfit, perfume, accessories, plus an overall summary and application steps).
-2. **Rendering**: `wanx2.1-imageedit` produces a restyled portrait from that advice. Advice and image are persisted in
+2. **Rendering**: `wan2.6-image` produces a restyled portrait from that advice. Advice and image are persisted in
    `makeover_record`, sub-task progress in `makeover_task`, and the frontend follows along over SSE.
 3. **Quota**: regular users get `makeover.monthly-free-quota` requests per month (3 by default); VIP tiers add more
    (week +2 / month +6 / quarter +9 / year +13 / lifetime unlimited).

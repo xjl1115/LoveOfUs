@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.lovemap.mapper.UserPointsLogMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.lovemap.model.entity.UserPointsLog">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="change_type" property="changeType"/>
+        <result column="change_points" property="changePoints"/>
+        <result column="balance_after" property="balanceAfter"/>
+        <result column="ref_type" property="refType"/>
+        <result column="ref_id" property="refId"/>
+        <result column="remark" property="remark"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO user_points_log (user_id, change_type, change_points, balance_after,
+                                     ref_type, ref_id, remark, created_at)
+        VALUES (#{userId}, #{changeType}, #{changePoints}, #{balanceAfter},
+                #{refType}, #{refId}, #{remark}, NOW())
+    </insert>
+
+    <!--
+      按日期聚合：返回 yyyy-MM-dd -> 当天获得积分总和（仅正向 change）
+      用于签到日历中显示「该日获得的积分」
+    -->
+    <select id="dailyScoreByMonth" resultType="java.util.Map">
+        SELECT DATE(created_at) AS day,
+               SUM(change_points) AS score
+        FROM user_points_log
+        WHERE user_id = #{userId}
+          AND change_type = 1
+          AND change_points > 0
+          AND DATE(created_at) BETWEEN #{startDate} AND #{endDate}
+        GROUP BY DATE(created_at)
+        ORDER BY day ASC
+    </select>
+
+    <!--
+      按月返回签到日期列表（yyyy-MM-dd 字符串）
+    -->
+    <select id="checkInDatesByMonth" resultType="string">
+        SELECT DISTINCT DATE_FORMAT(created_at, '%Y-%m-%d') AS day
+        FROM user_points_log
+        WHERE user_id = #{userId}
+          AND change_type = 1
+          AND change_points > 0
+          AND DATE(created_at) BETWEEN #{startDate} AND #{endDate}
+        ORDER BY day ASC
+    </select>
+
+</mapper>

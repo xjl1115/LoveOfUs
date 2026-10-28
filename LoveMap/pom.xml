@@ -28,6 +28,8 @@
     </scm>
     <properties>
         <java.version>25</java.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     </properties>
     <dependencies>
         <dependency>
@@ -268,6 +270,7 @@
                             <goal>compile</goal>
                         </goals>
                         <configuration>
+                            <encoding>UTF-8</encoding>
                             <annotationProcessorPaths>
                                 <path>
                                     <groupId>org.projectlombok</groupId>
@@ -283,6 +286,7 @@
                             <goal>testCompile</goal>
                         </goals>
                         <configuration>
+                            <encoding>UTF-8</encoding>
                             <annotationProcessorPaths>
                                 <path>
                                     <groupId>org.projectlombok</groupId>

@@ -90,6 +90,13 @@ public class AuthController {
         return authService.resetPassword(dto);
     }
 
+    @PostMapping("/password/change")
+    @Operation(summary = "修改密码（已登录）")
+    public Result<Void> changePassword(@RequestAttribute("userId") Integer userId,
+                                       @Valid @RequestBody PasswordChangeDTO dto) {
+        return authService.changePassword(userId, dto);
+    }
+
     @PostMapping("/bind")
     @Operation(summary = "绑定伴侣")
     public Result<Void> bindPartner(@RequestAttribute("userId") Integer userId,

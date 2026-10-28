@@ -65,13 +65,21 @@ public interface MakeoverRecordMapper {
     long countByUser(@Param("userId") Integer userId);
 
     /**
-     * 统计某用户在一个时间区间内提交的次数（含已软删记录，避免删除后刷回额度）
+     * 统计某用户在一个时间区间内、指定消耗来源的次数（含已软删记录，避免删除后刷回额度）
      *
-     * @param userId 用户 ID
-     * @param start  区间起（含）
-     * @param end    区间止（不含）
+     * @param userId      用户 ID
+     * @param quotaSource 消耗来源：1=月度基础额度，2=次卡入账
+     * @param start       区间起（含）
+     * @param end         区间止（不含）
      */
-    long countMonthlyByUser(@Param("userId") Integer userId,
-                            @Param("start") LocalDateTime start,
-                            @Param("end") LocalDateTime end);
+    long countBySourceInPeriod(@Param("userId") Integer userId,
+                               @Param("quotaSource") Integer quotaSource,
+                               @Param("start") LocalDateTime start,
+                               @Param("end") LocalDateTime end);
+
+    /**
+     * 统计某用户指定消耗来源的历史累计次数（次卡入账不过期，按全量统计）
+     */
+    long countBySource(@Param("userId") Integer userId,
+                       @Param("quotaSource") Integer quotaSource);
 }

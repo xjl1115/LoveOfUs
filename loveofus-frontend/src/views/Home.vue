@@ -41,6 +41,11 @@
       @filter-by-province="handleProvinceFilter"
     />
 
+    <button class="memory-gallery-entry" @click="router.push('/memory-gallery')">
+      <span><strong>回忆展览</strong><small>照片墙与弧形浏览，重温心动瞬间</small></span>
+      <span class="entry-action">去看看 <van-icon name="arrow" /></span>
+    </button>
+
     <!-- 时间线照片列表 -->
     <div class="timeline-section">
       <van-pull-refresh v-model="refreshing" @refresh="onRefresh">
@@ -283,6 +288,26 @@ function viewPhoto(id: number) {
 </script>
 
 <style scoped lang="scss">
+.memory-gallery-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: calc(100% - 24px);
+  margin: 12px;
+  padding: 16px;
+  border: 1px solid #e8dfd3;
+  border-radius: $radius-lg;
+  background: linear-gradient(120deg, #f9f0e3, #fffaf4);
+  color: #795b42;
+  text-align: left;
+  cursor: pointer;
+
+  strong { display: block; font-size: 16px; font-weight: 600; }
+  small { display: block; margin-top: 6px; color: #a18b76; font-size: 11px; }
+  .entry-action { flex-shrink: 0; font-size: 12px; }
+}
+
 .home-page {
   min-height: 100vh;
   background: $bg-color;

@@ -4,6 +4,7 @@ import com.example.lovemap.common.BusinessException;
 import com.example.lovemap.common.PageResult;
 import com.example.lovemap.common.ResultCode;
 import com.example.lovemap.common.constant.VipConstant;
+import com.example.lovemap.common.constant.QuotaSource;
 import com.example.lovemap.mapper.UserMapper;
 import com.example.lovemap.makeover.constant.MakeoverConstant;
 import com.example.lovemap.makeover.mapper.MakeoverRecordMapper;
@@ -54,6 +55,7 @@ public class MakeoverServiceImpl implements MakeoverService {
     private final ObjectMapper objectMapper;
     private final StringRedisTemplate redisTemplate;
     private final VipService vipService;
+    private final com.example.lovemap.makeover.mapper.MakeoverQuotaGrantMapper makeoverQuotaGrantMapper;
 
     /** 每个账户每月免费 AI 化妆建议次数，VIP 档位在此基础上叠加额外次数 */
     @Value("${makeover.monthly-free-quota:3}")
@@ -130,6 +132,8 @@ public class MakeoverServiceImpl implements MakeoverService {
         record.setOriginalKey(objectKey);
         record.setSceneCode(dto.getScene());
         record.setSceneText(dto.getDescription());
+        // 本次消耗归属：先扣月度基础额度，基础额度用尽后消耗次卡（不过期）
+        record.setQuotaSource(resolveQuotaSource(userId));
         // suggestions 在 analyze 完成后回填，这里先塞空 JSON 以满足 NOT NULL 约束
         record.setSuggestions("{}");
         record.setStatus(MakeoverConstant.STATUS_PENDING);
@@ -151,20 +155,64 @@ public class MakeoverServiceImpl implements MakeoverService {
 
     @Override
     public MakeoverQuotaVO quota(Integer userId) {
+        Integer monthly = monthlyBaseQuota(userId);
+        MakeoverQuotaVO vo = new MakeoverQuotaVO();
+        if (monthly == null) {
+            // 永久卡不限量
+            vo.setUnlimited(true);
+            vo.setUsed(0);
+            return vo;
+        }
+
+        int baseUsed = monthlyBaseUsed(userId);
+        int purchasedRemaining = purchasedRemaining(userId);
+        vo.setUnlimited(false);
+        // 已用只统计月度基础额度消耗；总额度额外带上未用完的次卡次数
+        vo.setUsed(baseUsed);
+        vo.setTotal(monthly + purchasedRemaining);
+        vo.setRemaining(Math.max(0, monthly - baseUsed) + purchasedRemaining);
+        return vo;
+    }
+
+    /**
+     * 月度基础额度 = 每月免费次数 + VIP 档位额外次数；永久卡返回 null 表示不限量
+     */
+    private Integer monthlyBaseQuota(Integer userId) {
         // VIP 归属情侣组：额外额度按组内生效等级计算，双方各自独立计数
         User user = userMapper.selectById(userId);
         int vipLevel = vipService.resolveEffectiveVip(user).level();
-        Integer total = VipConstant.makeoverMonthlyQuota(vipLevel, monthlyFreeQuota);
+        return VipConstant.makeoverMonthlyQuota(vipLevel, monthlyFreeQuota);
+    }
 
+    /** 本月已消耗的月度基础额度次数 */
+    private int monthlyBaseUsed(Integer userId) {
         LocalDateTime monthStart = LocalDate.now().withDayOfMonth(1).atStartOfDay();
-        int used = (int) recordMapper.countMonthlyByUser(userId, monthStart, monthStart.plusMonths(1));
+        return (int) recordMapper.countBySourceInPeriod(
+                userId, QuotaSource.PERIOD, monthStart, monthStart.plusMonths(1));
+    }
 
-        MakeoverQuotaVO vo = new MakeoverQuotaVO();
-        vo.setUsed(used);
-        vo.setUnlimited(total == null);
-        vo.setTotal(total);
-        vo.setRemaining(total == null ? null : Math.max(0, total - used));
-        return vo;
+    /**
+     * 次卡剩余次数 = 累计入账 - 累计消耗，不过期、不随月份重置，用完为止
+     */
+    private int purchasedRemaining(Integer userId) {
+        Integer granted = makeoverQuotaGrantMapper.sumAll(userId.longValue());
+        if (granted == null || granted <= 0) {
+            return 0;
+        }
+        long used = recordMapper.countBySource(userId, QuotaSource.PURCHASED);
+        return (int) Math.max(0L, granted - used);
+    }
+
+    /**
+     * 本次消耗归属：优先扣月度基础额度，基础额度用尽后才消耗次卡
+     */
+    private int resolveQuotaSource(Integer userId) {
+        Integer monthly = monthlyBaseQuota(userId);
+        if (monthly == null) {
+            // 永久卡不限量，不消耗次卡
+            return QuotaSource.PERIOD;
+        }
+        return monthlyBaseUsed(userId) < monthly ? QuotaSource.PERIOD : QuotaSource.PURCHASED;
     }
 
     @Override

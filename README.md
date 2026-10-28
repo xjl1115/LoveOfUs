@@ -34,7 +34,7 @@ LoveOfUs 是一款面向情侣、移动端优先（H5）的 Web 应用：把两�
 | 层次 | 技术选型 |
 |------|----------|
 | 后端 | Spring Boot 4.0.6 · Java 25 · Spring Security + JWT（jjwt 0.12.5）· MyBatis 4.0.1 + PageHelper · WebSocket · Spring Mail · Actuator · springdoc-openapi 2.2.0 · iText 7.2.6 |
-| AI | LangChain4j 1.18.0 · langchain4j-community-dashscope 1.19.0-beta29 · dashscope-sdk-java 2.22.31 · 通义千问 `qwen3.7-flash`（对话/多模态）· `wanx2.1-imageedit`（图像编辑） |
+| AI | LangChain4j 1.18.0 · langchain4j-community-dashscope 1.19.0-beta29 · dashscope-sdk-java 2.22.31 · 通义千问 `qwen3.7-flash`（对话/多模态）· `wan2.6-image`（图像编辑） |
 | 前端 | Vue 3.4 · TypeScript 5.4 · Vite 5 · Pinia · Vue Router 4 · Vant 4 · ECharts 5 · Sass · axios · dayjs · vue-virtual-scroller · html2canvas · qrcode · amfe-flexible + postcss-pxtorem |
 | 数据与存储 | MySQL 8/9 · Redis 7 · 阿里云 OSS（生产）/ 本地磁盘（`file.storage=local`） |
 | 部署 | Nginx 1.28（反向代理 + 静态托管 + SSE 免缓冲 + WebSocket 升级）· Docker Compose（MySQL + Redis + Backend + Frontend） |
@@ -192,7 +192,7 @@ npm run build            # 产物在 dist/
 | `DASHSCOPE_API_KEY` | 空 | 通义千问 API Key，AI 功能必填 |
 | `DASHSCOPE_MODEL` | `qwen3.7-flash-2026-07-15` | 对话与工具调用模型 |
 | `DASHSCOPE_MAKEOVER_API_KEY` / `DASHSCOPE_MAKEOVER_MODEL` | 回落到 `DASHSCOPE_API_KEY` | 妆容建议专用模型覆盖 |
-| `DASHSCOPE_MAKEOVER_IMAGE_MODEL` | `wanx2.1-imageedit` | 改造图生成模型 |
+| `DASHSCOPE_MAKEOVER_IMAGE_MODEL` | `wan2.6-image` | 改造图生成模型 |
 | `MAKEOVER_MONTHLY_FREE_QUOTA` | `3` | 每账户每月免费妆容建议次数 |
 | `VIP_ADMIN_TOKEN` | 空 | 顾问开通接口密钥（请求头 `X-Vip-Admin-Token`），未配置时接口返回 403 |
 | `VIP_PUBLIC_BASE_URL` | `http://localhost:8080` | 对外地址，用于生成顾问通知邮件中的开通命令 |
@@ -296,7 +296,7 @@ Nginx 已对这三个路径关闭 `proxy_buffering`，否则流式输出会被�
 
 1. **分析**：多模态模型读取人像照片，输出脸型、肤色、五官特征，以及场景化的妆造建议（妆容、发型、穿搭、香水、配饰，
    外加整体总结与上妆步骤）。
-2. **出图**：`wanx2.1-imageedit` 依据建议生成改造图，结果与建议一并持久化到 `makeover_record`，
+2. **出图**：`wan2.6-image` 依据建议生成改造图，结果与建议一并持久化到 `makeover_record`，
    子任务进度记在 `makeover_task`，前端通过 SSE 实时展示。
 3. **配额**：普通用户每月 `makeover.monthly-free-quota` 次（默认 3），VIP 按档位叠加
    （周卡 +2 / 月卡 +6 / 季卡 +9 / 年卡 +13 / 永久不限量）。

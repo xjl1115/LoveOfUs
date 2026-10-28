@@ -37,7 +37,7 @@ import { getNotificationSSE } from '@/api/systemMessage'
 const dummyDialogVisible = ref(false)
 
 // 需要缓存的页面（用户频繁往返的页面）
-const cachedViews = ref(['Home', 'Albums', 'Profile'])
+const cachedViews = ref(['Home', 'Albums', 'Profile', 'MemoryGallery'])
 
 // ============ 全局聊天未读数 SSE 订阅 ============
 // 修复：原实现把订阅挂在 Home/SystemMessageFloatBtn 各自 onMounted，跨页面会断链。

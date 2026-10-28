@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.lovemap.mapper.CoupleTaskMapper">
+
+    <resultMap id="BaseResultMap" type="com.example.lovemap.model.entity.CoupleTask">
+        <id column="id" property="id"/>
+        <result column="content" property="content"/>
+        <result column="description" property="description"/>
+        <result column="icon" property="icon"/>
+        <result column="points" property="points"/>
+        <result column="status" property="status"/>
+        <result column="complete_type" property="completeType"/>
+        <result column="period_type" property="periodType"/>
+        <result column="claim_required" property="claimRequired"/>
+        <result column="sort_order" property="sortOrder"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <sql id="BaseColumns">
+        id, content, description, icon, points, status,
+        complete_type, period_type, claim_required, sort_order, created_at, updated_at
+    </sql>
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM couple_task
+        ORDER BY status DESC, sort_order ASC, id ASC
+    </select>
+
+    <select id="selectEnabled" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM couple_task
+        WHERE status = 1
+        ORDER BY sort_order ASC, id ASC
+    </select>
+
+    <select id="selectEnabledByCompleteType" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM couple_task
+        WHERE status = 1
+          AND complete_type = #{completeType}
+        ORDER BY sort_order ASC, id ASC
+    </select>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT <include refid="BaseColumns"/>
+        FROM couple_task
+        WHERE id = #{id}
+        LIMIT 1
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO couple_task (content, description, icon, points, status,
+                                 complete_type, period_type, claim_required, sort_order, created_at, updated_at)
+        VALUES (#{content}, #{description}, #{icon}, #{points}, #{status},
+                #{completeType}, #{periodType}, #{claimRequired}, #{sortOrder}, NOW(), NOW())
+    </insert>
+
+    <update id="update">
+        UPDATE couple_task
+        SET content = #{content},
+            description = #{description},
+            icon = #{icon},
+            points = #{points},
+            status = #{status},
+            complete_type = #{completeType},
+            period_type = #{periodType},
+            claim_required = #{claimRequired},
+            sort_order = #{sortOrder},
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM couple_task WHERE id = #{id}
+    </delete>
+
+</mapper>

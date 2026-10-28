@@ -1,11 +1,13 @@
 package com.example.lovemap.chat;
 
 import com.example.lovemap.common.ResultCode;
+import com.example.lovemap.common.constant.PointsConstant;
 import com.example.lovemap.mapper.ChatMessageMapper;
 import com.example.lovemap.mapper.UserMapper;
 import com.example.lovemap.model.entity.ChatMessage;
 import com.example.lovemap.model.entity.User;
 import com.example.lovemap.service.SseService;
+import com.example.lovemap.service.UserTaskTriggerService;
 import com.example.lovemap.utils.TokenUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +43,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     private final ChatPresenceRegistry chatPresenceRegistry;
     private final SseService sseService;
     private final TokenUtils tokenUtils;
+    private final UserTaskTriggerService userTaskTriggerService;
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @Override
@@ -121,11 +124,14 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 
     private void handleChat(WebSocketSession session, Integer userId, WsChatMessage in) {
         String content = in.getContent();
-        if (content == null || content.isBlank()) {
+        // 附件消息（msg_type=2 图片 / 3 文件）content 允许为空，由 imageUrl 承载附件地址
+        String imageUrl = in.getImageUrl();
+        boolean hasAttachment = imageUrl != null && !imageUrl.isBlank();
+        if (!hasAttachment && (content == null || content.isBlank())) {
             sendError(session, "消息内容不能为空");
             return;
         }
-        if (content.length() > 2000) {
+        if (content != null && content.length() > 2000) {
             sendError(session, "消息内容超过2000字符");
             return;
         }
@@ -139,8 +145,10 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         ChatMessage entity = new ChatMessage();
         entity.setSenderId(userId);
         entity.setReceiverId(user.getPartnerId().intValue());
-        entity.setContent(content);
+        entity.setContent(content == null ? "" : content);
+        entity.setImageUrl(hasAttachment ? imageUrl : null);
         entity.setMsgType(in.getMsgType() == null ? 1 : in.getMsgType());
+        entity.setExtraJson(hasAttachment ? in.getExtraJson() : null);
         entity.setIsRead(0);
         entity.setCreatedAt(LocalDateTime.now());
 
@@ -151,6 +159,9 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             sendError(session, "消息发送失败，请稍后重试");
             return;
         }
+
+        // 消息发送成功 → 系统自动识别「发消息」类情侣任务（失败不影响聊天）
+        userTaskTriggerService.onEvent(userId, PointsConstant.COMPLETE_MESSAGE_SEND);
 
         Integer receiverId = Math.toIntExact(entity.getReceiverId());
 

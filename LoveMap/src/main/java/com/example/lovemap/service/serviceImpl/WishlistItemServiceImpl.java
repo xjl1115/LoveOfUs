@@ -5,6 +5,7 @@ import com.example.lovemap.common.BusinessException;
 import com.example.lovemap.common.Result;
 import com.example.lovemap.common.ResultCode;
 import com.example.lovemap.common.ServiceHelper;
+import com.example.lovemap.common.constant.QuotaType;
 import com.example.lovemap.common.constant.WishlistConstant;
 import com.example.lovemap.mapper.UserMapper;
 import com.example.lovemap.mapper.WishlistItemMapper;
@@ -17,6 +18,7 @@ import com.example.lovemap.model.entity.User;
 import com.example.lovemap.model.entity.WishlistItem;
 import com.example.lovemap.model.vo.AiRecommendVO;
 import com.example.lovemap.model.vo.WishlistItemVO;
+import com.example.lovemap.service.QuotaService;
 import com.example.lovemap.service.WishlistItemService;
 import com.example.lovemap.utils.FileTypeUtils;
 import com.example.lovemap.utils.storage.FileStorage;
@@ -54,6 +56,7 @@ public class WishlistItemServiceImpl implements WishlistItemService {
     private final UserMapper userMapper;
     private final AiRecommendService aiRecommendService;
     private final FileStorage fileStorage;
+    private final QuotaService quotaService;
 
     /** 代理读取存储中的照片：服务端转发，避免前端跨域取图污染 canvas 导致卡片导出失败 */
     private static final HttpClient PHOTO_HTTP_CLIENT = HttpClient.newBuilder()
@@ -289,6 +292,8 @@ public class WishlistItemServiceImpl implements WishlistItemService {
         if (user == null) {
             return Result.error(ResultCode.NOT_FOUND, "用户不存在");
         }
+        // 配额消费：AI 推荐 - 心愿（每周基础+VIP加成）
+        quotaService.consume(user, QuotaType.AI_WISHLIST);
         // 已有心愿标题交给 AI 做去重，避免重复推荐清单中已存在的事件
         List<String> existingTitles = wishlistItemMapper.selectByGroupOrUser(user.getGroupId(), user.getId())
                 .stream()
